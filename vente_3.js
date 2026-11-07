@@ -1,5 +1,5 @@
 // VENTESKÆRMEN, trin 3: hele forløbet med lyd
-//   start  →  fiktiv triage (store knapper)  →  "du er i køen"  →  venteskærmen  →  "du er den næste"
+//   "ring op"  →  CPR (tast eller spring over)  →  fiktiv triage (store knapper)  →  "du er i køen"  →  venteskærmen  →  "du er den næste"
 //
 // Lyd: rolig musik fra en fil (mappen lyd/) og telefonens egen danske stemme,
 // der læser kortene og nummeret op. Musikken dæmpes, mens stemmen taler.
@@ -8,7 +8,8 @@
 //                tryk på skærmen under ventetiden = køen rykker ét nummer
 // Tastatur:      mellemrum = køen rykker   n = dag/nat   r = forfra   m = skift musik (piano / mindfulness / fra)
 
-let tilstand = "start";        // "start", "triage", "roed", "udfald", "venter"
+let tilstand = "start";        // "start", "cpr", "triage", "roed", "udfald", "venter"
+let cpr = "";                  // det, der er tastet på CPR-skærmen (gemmes ikke, det er en prototype)
 let nat = false;
 
 // ---------- SVARENE FRA TRIAGEN ----------
@@ -92,7 +93,6 @@ const RAAD = {
     ["Vær opmærksom på", "Hold øje med, om du kan åbne munden normalt, som når du gaber højt."],
     ["Vær opmærksom på", "Hold øje med pludseligt hududslæt, og om smerterne varer ved efter 5 til 7 dage."] ] },
   "andet": { titel: "Mens du venter", kilde: "1813", kort: [
-    ["Mens du venter", "Find sundhedskortet frem, så det er klar, når sygeplejersken ringer."],
     ["Mens du venter", "Har du en medicinliste, så hav den ved hånden."],
     ["Mens du venter", "Sæt dig et roligt sted, hvor du kan tale frit."],
     ["Mens du venter", "Sygeplejersken vil spørge, hvornår det startede, og om det er blevet værre."] ] }
@@ -171,6 +171,7 @@ function draw() {
   tegnSkyer();
 
   if (tilstand == "start")       tegnStart();
+  else if (tilstand == "cpr")    tegnCpr();
   else if (tilstand == "triage") tegnTriage();
   else if (tilstand == "roed")   tegnRoed();
   else if (tilstand == "udfald") tegnUdfald();
@@ -197,13 +198,50 @@ function tegnStart() {
 
   textSize(15);
   textLeading(22);
-  text("Vi stiller dig et par spørgsmål, så du får de råd, der passer til dig.", width * 0.15, height * 0.42, width * 0.7, height * 0.12);
+  text("Akuttelefonen, når din egen læge har lukket.", width * 0.15, height * 0.42, width * 0.7, height * 0.12);
 
-  knap(width / 2, height * 0.62, width * 0.7, 60, "Start", "start");
+  knap(width / 2, height * 0.62, width * 0.7, 60, "Ring op", "start");
 
   textSize(12);
   fill(tekstSvag);
   text("Prototype · ikke Region Hovedstadens app", width / 2, height - 40);
+}
+
+function tegnCpr() {
+  noStroke();
+  fill(tekstSvag); textSize(13); textStyle(NORMAL);
+  text("INDTAST CPR-NUMMER", width / 2, height * 0.11);
+
+  // feltet med de tastede cifre
+  let vis = cpr.slice(0, 6) + (cpr.length > 6 ? "-" + cpr.slice(6) : "");
+  fill(red(kortFyld), green(kortFyld), blue(kortFyld), alpha(kortFyld));
+  rect(width * 0.12, height * 0.15, width * 0.76, 56, 16);
+  fill(tekst); textSize(24); textStyle(BOLD);
+  text(vis.length ? vis : "______-____", width / 2, height * 0.15 + 28);
+
+  // tastaturet: 1-9, så slet, 0, videre
+  let taster = ["1","2","3","4","5","6","7","8","9","slet","0","ok"];
+  let kw = width * 0.26, kh = 56, mx = width * 0.04, my = 12;
+  let x0 = width / 2 - kw - mx, y0 = height * 0.27;
+  for (let i = 0; i < taster.length; i++) {
+    let t = taster[i];
+    let cx = x0 + (i % 3) * (kw + mx), cy = y0 + floor(i / 3) * (kh + my) + kh / 2;
+    let label = (t == "slet") ? "⌫" : (t == "ok") ? "Videre" : t;
+    let vaerdi = (t == "ok") ? "cpr-videre" : "cpr-" + t;
+    if (t == "ok" && cpr.length < 10) { /* først når alle ti cifre er tastet */
+      noStroke(); fill(red(kortFyld), green(kortFyld), blue(kortFyld), alpha(kortFyld) * 0.4);
+      rect(cx - kw / 2, cy - kh / 2, kw, kh, kh / 2);
+      fill(red(tekstSvag), green(tekstSvag), blue(tekstSvag), 160); textSize(16); textStyle(BOLD);
+      text(label, cx, cy);
+    } else {
+      knap(cx, cy, kw, kh, label, vaerdi);
+    }
+  }
+
+  // ved man det ikke, går man videre uden
+  fill(tekstSvag); textSize(13); textStyle(NORMAL);
+  text("Ringer du om en anden, eller kender du ikke nummeret?", width / 2, height * 0.66);
+  knap(width / 2, height * 0.72, width * 0.7, 50, "Kender det ikke", "cpr-spring");
 }
 
 function tegnTriage() {
@@ -425,7 +463,7 @@ function knap(cx, cy, w, h, label, vaerdi) {
 }
 
 function tryk(mx, my) {
-  if (millis() - sidsteTryk < 300) return;   // ét tryk, ikke to (touch + mus)
+  if (millis() - sidsteTryk < 150) return;   // ét tryk, ikke to (touch + mus)
   sidsteTryk = millis();
   startLyd();
 
@@ -441,8 +479,17 @@ function haandter(vaerdi) {
   if (vaerdi == "forfra")   { forfra(); return; }
 
   if (tilstand == "start" && vaerdi == "start") {
-    tilstand = "triage"; spoergsmaalNr = 0; svar = {};
-    sig(aktueltSpoergsmaal().tekst);
+    tilstand = "cpr"; cpr = "";
+    sig("Tast CPR-nummer, eller tryk 'kender det ikke'.");
+    return;
+  }
+  if (tilstand == "cpr") {
+    if (vaerdi == "cpr-slet") cpr = cpr.slice(0, -1);
+    else if (vaerdi == "cpr-videre" || vaerdi == "cpr-spring") {
+      tilstand = "triage"; spoergsmaalNr = 0; svar = {};
+      sig(aktueltSpoergsmaal().tekst);
+    }
+    else if (vaerdi.startsWith("cpr-") && cpr.length < 10) cpr += vaerdi.slice(4);
     return;
   }
   if (tilstand == "triage") {
@@ -495,7 +542,7 @@ function koenRykker() {
 }
 
 function forfra() {
-  tilstand = "start"; koe = koeStart; svar = {}; spoergsmaalNr = 0; kortNr = 0; kortLaestOp = -1;
+  tilstand = "start"; koe = koeStart; svar = {}; spoergsmaalNr = 0; kortNr = 0; kortLaestOp = -1; cpr = "";
   if (window.speechSynthesis) speechSynthesis.cancel();
 }
 
