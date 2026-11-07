@@ -151,8 +151,7 @@ function setup() {
   textAlign(CENTER, CENTER);
   textFont("Helvetica");
 
-  let h = hour();
-  nat = (h >= 20 || h < 6);
+  nat = erDetNat();            // følger solen over København, ikke klokken
   saetFarver();
 
   for (let i = 0; i < 5; i++) {
@@ -590,6 +589,51 @@ function sig(tekst) {
   u.onend = () => { taler = false; };
   u.onerror = () => { taler = false; };
   speechSynthesis.speak(u);
+}
+
+
+// ========== SOLEN ==========
+// Solopgang og solnedgang for København (55,68 N, 12,57 Ø), regnet ud med den almindelige
+// solformel (NOAA/Almanac). Dag = mellem solopgang og solnedgang, ellers nat.
+// Demo-knappen (sol/måne) kan stadig skifte manuelt.
+const BREDDE = 55.68, LAENGDE = 12.57;
+
+function solTid(dato, opgang) {
+  let start = new Date(dato.getFullYear(), 0, 0);
+  let N = floor((dato - start) / 86400000);                 // dag nr. i året
+  let lngHour = LAENGDE / 15;
+  let t = N + ((opgang ? 6 : 18) - lngHour) / 24;
+  let M = 0.9856 * t - 3.289;                                // solens middelanomali
+  let L = M + 1.916 * sin(radians(M)) + 0.020 * sin(radians(2 * M)) + 282.634;
+  L = (L + 360) % 360;                                       // solens sande længde
+  let RA = degrees(atan(0.91764 * tan(radians(L))));
+  RA = (RA + 360) % 360;
+  RA = RA + (floor(L / 90) * 90 - floor(RA / 90) * 90);      // samme kvadrant som L
+  RA = RA / 15;
+  let sinDec = 0.39782 * sin(radians(L));
+  let cosDec = cos(asin(sinDec));
+  let cosH = (cos(radians(90.833)) - sinDec * sin(radians(BREDDE))) / (cosDec * cos(radians(BREDDE)));
+  if (cosH > 1) return null;                                 // solen står ikke op (ikke i København)
+  if (cosH < -1) return null;                                // solen går ikke ned
+  let H = opgang ? 360 - degrees(acos(cosH)) : degrees(acos(cosH));
+  H = H / 15;
+  let T = H + RA - 0.06571 * t - 6.622;
+  let UT = (T - lngHour + 24) % 24;
+  let lokal = (UT - dato.getTimezoneOffset() / 60 + 24) % 24; // telefonens egen tidszone
+  return lokal;                                              // timer, fx 7.5 = kl. 7.30
+}
+
+function erDetNat() {
+  let nu = new Date();
+  let op = solTid(nu, true), ned = solTid(nu, false);
+  if (op == null || ned == null) return false;
+  let klokken = nu.getHours() + nu.getMinutes() / 60;
+  console.log("Solopgang " + tidTekst(op) + ", solnedgang " + tidTekst(ned));
+  return klokken < op || klokken > ned;
+}
+
+function tidTekst(timer) {
+  return nf(floor(timer), 2) + "." + nf(floor((timer % 1) * 60), 2);
 }
 
 
