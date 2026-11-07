@@ -228,14 +228,7 @@ function tegnCpr() {
     let cx = x0 + (i % 3) * (kw + mx), cy = y0 + floor(i / 3) * (kh + my) + kh / 2;
     let label = (t == "slet") ? "⌫" : (t == "ok") ? "Videre" : t;
     let vaerdi = (t == "ok") ? "cpr-videre" : "cpr-" + t;
-    if (t == "ok" && cpr.length < 10) { /* først når alle ti cifre er tastet */
-      noStroke(); fill(red(kortFyld), green(kortFyld), blue(kortFyld), alpha(kortFyld) * 0.4);
-      rect(cx - kw / 2, cy - kh / 2, kw, kh, kh / 2);
-      fill(red(tekstSvag), green(tekstSvag), blue(tekstSvag), 160); textSize(16); textStyle(BOLD);
-      text(label, cx, cy);
-    } else {
-      knap(cx, cy, kw, kh, label, vaerdi);
-    }
+    knap(cx, cy, kw, kh, label, vaerdi);   // prototype: Videre virker uanset, hvad der er tastet
   }
 
   // ved man det ikke, går man videre uden
