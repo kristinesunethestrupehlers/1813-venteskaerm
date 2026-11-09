@@ -1,5 +1,5 @@
 // 1813 WAITING SCREEN, step 4
-//   "call" screen  ->  CPR (type or skip)  ->  triage (big buttons, 8 to 11 questions)  ->  "you are in the queue"
+//   "call" screen  ->  CPR (type or skip)  ->  triage in akut.dk's structure (age group -> theme -> sub-theme -> the page's questions)  ->  "you are in the queue"
 //   ->  waiting screen with advice cards, walking figure, voice and music  ->  "you are next"
 //
 // New in step 4 (group feedback 9 Nov 2026):
@@ -44,100 +44,52 @@ const UI = {
 };
 function t(key) { return UI[lang][key]; }
 
-// ---------- TRIAGE QUESTIONS ----------
-// Each question: key (where the answer is stored), text in both languages, buttons [label da, label en, value].
-// "when" decides whether the question is asked, based on the answers so far.
-// "red" lists the answers that send straight to "hang up and call 112".
-// The same questions come first for everyone; then the branch for fever / sore throat / other.
-const YES_NO = [["Ja", "Yes", "yes"], ["Nej", "No", "no"]];
-const QUESTIONS = [
-  // asked only when the CPR number was skipped; otherwise the age group comes from the CPR digits
-  { key: "who", da: "Hvor gammel er den, det drejer sig om?", en: "How old is the person?", when: a => !a.who,
-    buttons: [["Under 4 måneder", "Under 4 months", "infant"], ["4 måneder til 12 år", "4 months to 12 years", "child"], ["13 år og op", "13 and over", "adult"]] },
-  { key: "what", da: "Hvad drejer det sig om?", en: "What is it about?",
-    buttons: [["Feber", "Fever", "fever"], ["Ondt i halsen", "Sore throat", "throat"], ["Noget andet", "Something else", "other"]] },
-  { key: "duration", da: "Hvor længe har det stået på?", en: "How long has it been going on?",
-    buttons: [["Under et døgn", "Less than a day", "day"], ["1 til 3 dage", "1 to 3 days", "days"], ["Mere end 3 dage", "More than 3 days", "long"]] },
-  { key: "worse", da: "Er det blevet værre den sidste time?", en: "Has it got worse in the last hour?", buttons: YES_NO },
-
-  // fever
-  { key: "temp", da: "Hvor høj er temperaturen?", en: "How high is the temperature?", when: a => a.what == "fever",
-    buttons: [["Under 38", "Below 38", "u38"], ["38 til 39", "38 to 39", "38"], ["39 til 40", "39 to 40", "39"], ["Over 40", "Above 40", "40"]] },
-  { key: "medicine", da: "Er der givet febernedsættende medicin inden for de sidste 4 timer?", en: "Has fever-reducing medicine been given in the last 4 hours?",
-    when: a => a.what == "fever", buttons: YES_NO },
-  { key: "breathing", da: "Trækker personen vejret hurtigere end normalt?", en: "Is the person breathing faster than normal?",
-    when: a => a.what == "fever", buttons: YES_NO },
-  { key: "drinking", da: "Drikker og tisser barnet som normalt?", en: "Is the child drinking and peeing as usual?",
-    when: a => a.what == "fever" && a.who == "child", buttons: YES_NO },
-  { key: "contact", da: "Er det nemt at få kontakt og øjenkontakt?", en: "Is it easy to get contact and eye contact?",
-    when: a => a.what == "fever", buttons: YES_NO, red: ["no"] },
-  { key: "rash", da: "Er der udslæt?", en: "Is there a rash?", when: a => a.what == "fever", buttons: YES_NO },
-  { key: "glass", da: "Forsvinder udslættet, når du trykker et glas mod det?", en: "Does the rash fade when you press a glass against it?",
-    when: a => a.what == "fever" && a.rash == "yes", buttons: YES_NO, red: ["no"] },
-
-  // sore throat
-  { key: "airway", da: "Er det svært at trække vejret?", en: "Is it hard to breathe?", when: a => a.what == "throat", buttons: YES_NO, red: ["yes"] },
-  { key: "throatFever", da: "Er der feber over 38?", en: "Is there a fever above 38?", when: a => a.what == "throat", buttons: YES_NO },
-  { key: "swallow", da: "Kan personen synke væske?", en: "Can the person swallow liquids?", when: a => a.what == "throat", buttons: YES_NO },
-  { key: "mouth", da: "Kan personen åbne munden som normalt?", en: "Can the person open their mouth as usual?", when: a => a.what == "throat", buttons: YES_NO },
-  { key: "tonsils", da: "Er der belægninger på mandlerne?", en: "Are there white patches on the tonsils?",
-    when: a => a.what == "throat" && a.who == "adult", buttons: YES_NO },
-  { key: "cough", da: "Er der hoste?", en: "Is there a cough?", when: a => a.what == "throat", buttons: YES_NO },
-
-  // other
-  { key: "sudden", da: "Er det kommet pludseligt?", en: "Did it come on suddenly?", when: a => a.what == "other", buttons: YES_NO },
-  { key: "pain", da: "Er der smerter?", en: "Is there pain?", when: a => a.what == "other", buttons: YES_NO },
-  { key: "painLevel", da: "Hvor stærke er smerterne, fra 1 til 10?", en: "How strong is the pain, from 1 to 10?",
-    when: a => a.what == "other" && a.pain == "yes",
-    buttons: [["1 til 3", "1 to 3", "low"], ["4 til 6", "4 to 6", "mid"], ["7 til 8", "7 to 8", "high"], ["9 til 10", "9 to 10", "top"]] },
-  { key: "chest", da: "Er smerterne i brystet?", en: "Is the pain in the chest?", when: a => a.what == "other" && a.pain == "yes", buttons: YES_NO, red: ["yes"] },
-
-  // last for everyone
-  { key: "chronic", da: "Er der kronisk sygdom eller fast medicin?", en: "Any chronic illness or regular medication?", buttons: YES_NO }
-];
-
-// ---------- ADVICE CARDS ----------
-// Danish texts are from akut.dk (Region Hovedstadens Akutberedskab): "Feber hos børn" 3 Jul 2026,
-// "Feber" (adults) 7 Jul 2026, "Ondt i halsen hos børn" 3 Jul 2026, "Ondt i halsen" (adults) 17 Aug 2026.
-// akut.dk has no English version (only a printable brochure), so the English cards are OUR translation.
-// Order is ours: first what you can DO, then what to WATCH FOR. Cards are statements, never questions.
-const DO = { da: "Det kan du gøre nu", en: "What you can do now" };
-const WATCH = { da: "Vær opmærksom på", en: "Watch for" };
-const ADVICE = {
-  "fever-child": { title: { da: "Feber hos børn", en: "Fever in children" }, source: "akut.dk", cards: [
-    [DO, "Sørg for, at dit barn får rigeligt at drikke.", "Make sure your child drinks plenty."],
-    [DO, "Hold øje med, at du har god kontakt til dit barn.", "Keep checking that you have good contact with your child."],
-    [DO, "Er barnet utilpas, må du gerne give paracetamol. Følg anvisningen på pakken.", "If the child is unwell, you may give paracetamol. Follow the instructions on the pack."],
-    [DO, "Feber er kroppens egen reaktion. I langt de fleste tilfælde går den over af sig selv.", "Fever is the body's own reaction. In most cases it passes by itself."],
-    [WATCH, "Hold øje med, om barnet drikker, og om det tisser som normalt.", "Watch whether the child is drinking and peeing as usual."],
-    [WATCH, "Hold øje med, om barnet bliver slapt eller sløvt, og om du kan få øjenkontakt.", "Watch whether the child becomes limp or drowsy, and whether you can get eye contact."] ] },
-  "fever-adult": { title: { da: "Feber hos voksne", en: "Fever in adults" }, source: "akut.dk", cards: [
-    [DO, "Febernedsættende medicin kan lindre, fx paracetamol eller ibuprofen.", "Fever-reducing medicine can help, such as paracetamol or ibuprofen."],
-    [DO, "Feber er ikke i sig selv grund til at kontakte en læge. Det afhænger af, hvordan du har det.", "Fever by itself is not a reason to contact a doctor. It depends on how you feel."],
-    [DO, "De fleste sygdomme med feber er harmløse og går over af sig selv.", "Most illnesses with fever are harmless and pass by themselves."],
-    [WATCH, "Mærk efter, om du får vejrtrækningsbesvær, bliver stiv i nakken eller udtalt sløv.", "Notice whether you get breathing difficulty, a stiff neck or marked drowsiness."],
-    [WATCH, "Hold øje med små røde eller violette prikker, der ikke forsvinder, når du trykker et glas mod dem.", "Watch for small red or purple spots that do not fade when you press a glass against them."],
-    [WATCH, "Hold øje med, om feberen holder sig over 40 grader, selvom du har taget febernedsættende medicin.", "Watch whether the fever stays above 40 degrees even after fever-reducing medicine."] ] },
-  "throat-child": { title: { da: "Ondt i halsen hos børn", en: "Sore throat in children" }, source: "akut.dk", cards: [
-    [DO, "Sørg for, at dit barn får rigeligt at drikke.", "Make sure your child drinks plenty."],
-    [DO, "Giv mad og drikke, der er nemt at synke, fx lun te eller kold is.", "Give food and drink that is easy to swallow, such as warm tea or cold ice cream."],
-    [DO, "Paracetamol kan lindre smerterne. Følg anvisningen på pakken.", "Paracetamol can ease the pain. Follow the instructions on the pack."],
-    [DO, "De fleste halsbetændelser skyldes virus og går over af sig selv i løbet af 3 til 7 dage.", "Most throat infections are viral and pass by themselves within 3 to 7 days."],
-    [WATCH, "Hold øje med, om barnet savler meget eller har svært ved at synke eller åbne munden.", "Watch whether the child drools a lot or has trouble swallowing or opening the mouth."],
-    [WATCH, "Hold øje med, om barnet arbejder meget for at trække vejret.", "Watch whether the child is working hard to breathe."],
-    [WATCH, "Hold øje med, om barnet drikker, og om det tisser som normalt.", "Watch whether the child is drinking and peeing as usual."] ] },
-  "throat-adult": { title: { da: "Ondt i halsen", en: "Sore throat" }, source: "akut.dk", cards: [
-    [DO, "Smertestillende håndkøbsmedicin, fx paracetamol, kan lindre.", "Over-the-counter painkillers such as paracetamol can help."],
-    [DO, "Smertestillende mundhulespray fra apoteket kan også hjælpe.", "A pain-relieving throat spray from the pharmacy can also help."],
-    [DO, "Kun 1 ud af 3 tilfælde af ondt i halsen skyldes bakterier. Forkølelsessymptomer peger på virus.", "Only 1 in 3 sore throats is bacterial. Cold symptoms point to a virus."],
-    [WATCH, "Feber over 38, belægninger på mandlerne og ømme kirtler under kæben kan være tegn på halsbetændelse.", "Fever above 38, white patches on the tonsils and tender glands under the jaw can be signs of tonsillitis."],
-    [WATCH, "Hold øje med, om du kan åbne munden normalt, som når du gaber højt.", "Watch whether you can open your mouth normally, as when you yawn."],
-    [WATCH, "Hold øje med pludseligt hududslæt, og om smerterne varer ved efter 5 til 7 dage.", "Watch for a sudden rash, and whether the pain lasts beyond 5 to 7 days."] ] },
-  "other": { title: { da: "Mens du venter", en: "While you wait" }, source: "1813", cards: [
-    [{ da: "Mens du venter", en: "While you wait" }, "Har du en medicinliste, så hav den ved hånden.", "If you have a medication list, keep it at hand."],
-    [{ da: "Mens du venter", en: "While you wait" }, "Sæt dig et roligt sted, hvor du kan tale frit.", "Sit somewhere quiet where you can talk freely."],
-    [{ da: "Mens du venter", en: "While you wait" }, "Sygeplejersken vil spørge, hvornår det startede, og om det er blevet værre.", "The nurse will ask when it started and whether it has got worse."] ] }
+// ---------- TRIAGE ----------
+// The questions and the advice live in content.js (akut.dk's structure: age group -> theme -> sub-theme -> page).
+// The triage is built step by step from the answers so far:
+//   who (only if the CPR number was skipped) -> theme -> sub-theme -> how long -> worse in the last hour
+//   -> the page's own questions (from akut.dk's "ring 112 hvis" and "ring læge hvis") -> chronic illness
+const COMMON_STEPS = {
+  who:      { key: "who", da: "Hvor gammel er den, det drejer sig om?", en: "How old is the person?",
+              buttons: [["Under 4 måneder", "Under 4 months", "infant"], ["4 måneder til 12 år", "4 months to 12 years", "child"], ["13 år og op", "13 and over", "adult"]] },
+  theme:    { key: "theme", da: "Hvad drejer det sig om?", en: "What is it about?" },
+  sub:      { key: "sub", da: "Hvad passer bedst?", en: "What fits best?" },
+  duration: { key: "duration", da: "Hvor længe har det stået på?", en: "How long has it been going on?",
+              buttons: [["Under et døgn", "Less than a day", "day"], ["1 til 3 dage", "1 to 3 days", "days"], ["Mere end 3 dage", "More than 3 days", "long"]] },
+  worse:    { key: "worse", da: "Er det blevet værre den sidste time?", en: "Has it got worse in the last hour?", buttons: YES_NO },
+  chronic:  { key: "chronic", da: "Er der kronisk sygdom eller fast medicin?", en: "Any chronic illness or regular medication?", buttons: YES_NO }
 };
+
+// the theme and sub-theme the person has chosen, and the akut.dk page that belongs to them
+function chosenTheme() { return (answers.who && answers.theme != null) ? THEMES[answers.who][int(answers.theme)] : null; }
+function chosenSub()   { let th = chosenTheme(); return (th && answers.sub != null) ? th.sub[int(answers.sub)] : null; }
+function pageKey()     { let sub = chosenSub(); return (sub && sub[2]) ? sub[2] : "general"; }
+
+// the step to show right now, built from the answers; null when the triage is complete
+function currentStep() {
+  if (!answers.who) return COMMON_STEPS.who;
+  if (answers.theme == null) {
+    let st = Object.assign({}, COMMON_STEPS.theme);
+    st.buttons = THEMES[answers.who].map((th, i) => [th.da, th.en, String(i)]);
+    return st;
+  }
+  if (answers.sub == null) {
+    let st = Object.assign({}, COMMON_STEPS.sub);
+    st.buttons = chosenTheme().sub.map((sb, i) => [sb[0], sb[1], String(i)]);
+    return st;
+  }
+  if (!answers.duration) return COMMON_STEPS.duration;
+  if (!answers.worse) return COMMON_STEPS.worse;
+  let page = PAGES[pageKey()];
+  for (let i = 0; i < page.questions.length; i++) {
+    if (answers["q" + i] === undefined) {
+      let q = page.questions[i];
+      return { key: "q" + i, da: q.da, en: q.en, buttons: q.buttons || YES_NO, redIf: q.redIf };
+    }
+  }
+  if (!answers.chronic) return COMMON_STEPS.chronic;
+  return null;
+}
 
 // ---------- QUEUE ----------
 let queue = 7;
@@ -153,9 +105,8 @@ let cardSpoken = -1;           // which card the voice has read
 
 // ---------- TRIAGE STATE ----------
 let answers = {};
-let questionIndex = 0;
 let asked = 0;                 // how many questions this person has answered (the counter on screen)
-let profile = "fever-child";
+let profile = "general";       // the akut.dk page whose cards are shown while waiting
 
 // ---------- FIGURE ----------
 let figureX = 0, figureTarget = 0, stride = 0;
@@ -295,20 +246,26 @@ function drawCpr() {
 }
 
 function drawTriage() {
-  let q = currentQuestion();
+  let q = currentStep();
   let top = insetTop + 40;
   noStroke();
   fill(inkSoft); textSize(13); textStyle(NORMAL);
   text(t("question") + " " + (asked + 1), width / 2, top + 20);
 
-  fill(ink); textSize(24); textLeading(32);
-  text(q[lang], width * 0.1, top + 50, width * 0.8, height * 0.22);
+  // short questions (the menus) leave more room for the buttons
+  let short = q[lang].length < 40;
+  let textH = short ? 50 : height * 0.2;
+  fill(ink); textSize(short ? 22 : 24); textLeading(short ? 28 : 32);
+  text(q[lang], width * 0.1, top + 46, width * 0.8, textH);
 
-  let n = q.buttons.length, bh = 58, gap = 14;
-  let startY = max(top + 50 + height * 0.22 + 20, height * 0.42);
+  let n = q.buttons.length;
+  let startY = top + 46 + textH + 18;
+  let room = height - insetBottom - 24 - startY;
+  let gap = n > 6 ? 8 : 12;
+  let bh = constrain((room - (n - 1) * gap) / n, 40, 58);
   for (let i = 0; i < n; i++) {
     let b = q.buttons[i];
-    button(width / 2, startY + i * (bh + gap), width * 0.76, bh, lang == "da" ? b[0] : b[1], b[2]);
+    button(width / 2, startY + bh / 2 + i * (bh + gap), width * 0.78, bh, lang == "da" ? b[0] : b[1], b[2], bh < 50 ? 15 : 18);
   }
 }
 
@@ -330,7 +287,7 @@ function drawQueued() {
   fill(ink); textStyle(BOLD); textSize(40);
   text(t("number") + " " + queue, width / 2, height * 0.30);
   textStyle(NORMAL); textSize(16); textLeading(24);
-  text(t("whileWaiting") + " " + ADVICE[profile].title[lang].toLowerCase() + ".", width * 0.12, height * 0.36, width * 0.76, height * 0.12);
+  text(t("whileWaiting") + " " + PAGES[profile].title[lang].toLowerCase() + ".", width * 0.12, height * 0.36, width * 0.76, height * 0.12);
   fill(amber); textStyle(BOLD); textSize(14);
   text(t("worse"), width / 2, height * 0.52);
   button(width / 2, height * 0.66, width * 0.7, 60, t("next"), "go-wait");
@@ -340,7 +297,7 @@ function drawQueued() {
 // ========== WAITING SCREEN ==========
 
 function drawCard(breath) {
-  let cards = ADVICE[profile].cards;
+  let cards = PAGES[profile].cards;
   let elapsed = millis() - cardStart;
 
   if (queue <= 1) {
@@ -388,8 +345,9 @@ function drawCard(breath) {
   text(cardText(c), -w / 2 + 28, -h / 2 + 56, w - 56, h - 100);
   fill(red(inkSoft), green(inkSoft), blue(inkSoft), a * 0.8);
   textSize(12);
-  let credit = ADVICE[profile].source + " · " + ADVICE[profile].title[lang];
-  if (lang == "en" && ADVICE[profile].source == "akut.dk") credit += " · " + t("translated");
+  let source = (profile == "general") ? "1813" : "akut.dk";
+  let credit = source + " · " + PAGES[profile].title[lang];
+  if (lang == "en" && source == "akut.dk") credit += " · " + t("translated");
   text(credit, 0, h / 2 - 24);
   pop();
 }
@@ -503,11 +461,11 @@ function drawLanguage() {
 
 // ========== BUTTONS AND TAPS ==========
 
-function button(cx, cy, w, h, label, value) {
+function button(cx, cy, w, h, label, value, size) {
   noStroke();
   fill(red(cardFill), green(cardFill), blue(cardFill), alpha(cardFill));
   rect(cx - w / 2, cy - h / 2, w, h, h / 2);
-  fill(ink); textSize(18); textStyle(BOLD);
+  fill(ink); textSize(size || 18); textStyle(BOLD);
   text(label, cx, cy);
   buttons.push({ x: cx - w / 2, y: cy - h / 2, w: w, h: h, value: value });
 }
@@ -542,25 +500,23 @@ function handle(value) {
         if (group) answers.who = group;
       }
       state = "triage"; asked = 0;
-      questionIndex = nextQuestion(0);
-      say(currentQuestion()[lang]);
+      say(currentStep()[lang]);
     }
     else if (value.startsWith("cpr-") && cpr.length < 10) cpr += value.slice(4);
     return;
   }
   if (state == "triage") {
-    let q = currentQuestion();
-    answers[q.key] = value;
+    let step = currentStep();
+    answers[step.key] = value;
     asked += 1;
-    if (q.red && q.red.includes(value)) { state = "red"; say(t("sayRed")); return; }
-    let next = nextQuestion(questionIndex + 1);
-    if (next == -1) {
-      profile = chooseProfile();
+    if (step.redIf && value == step.redIf) { state = "red"; say(t("sayRed")); return; }
+    let next = currentStep();
+    if (next == null) {
+      profile = pageKey();
       state = "queued";
-      say(t("sayQueued")(queue, ADVICE[profile].title[lang].toLowerCase()));
+      say(t("sayQueued")(queue, PAGES[profile].title[lang].toLowerCase()));
     } else {
-      questionIndex = next;
-      say(currentQuestion()[lang]);
+      say(next[lang]);
     }
     return;
   }
@@ -569,23 +525,6 @@ function handle(value) {
     cardStart = millis(); cardIndex = 0; cardSpoken = -1;
     figureX = figurePosition(queue); figureTarget = figureX;
   }
-}
-
-function currentQuestion() { return QUESTIONS[questionIndex]; }
-
-// the next question that fits the answers so far; -1 when there are no more
-function nextQuestion(from) {
-  for (let i = from; i < QUESTIONS.length; i++) {
-    let q = QUESTIONS[i];
-    if (!q.when || q.when(answers)) return i;
-  }
-  return -1;
-}
-
-function chooseProfile() {
-  if (answers.what == "other") return "other";
-  let who = (answers.who == "infant") ? "child" : answers.who;   // no separate infant cards yet
-  return answers.what + "-" + who;
 }
 
 // akut.dk's age groups from the CPR number: ddmmyy in the first six digits.
@@ -616,7 +555,7 @@ function queueMoves() {
 }
 
 function restart() {
-  state = "start"; queue = QUEUE_START; answers = {}; questionIndex = 0; asked = 0; cardIndex = 0; cardSpoken = -1; cpr = "";
+  state = "start"; queue = QUEUE_START; answers = {}; asked = 0; cardIndex = 0; cardSpoken = -1; cpr = ""; profile = "general";
   if (window.speechSynthesis) speechSynthesis.cancel();
 }
 
