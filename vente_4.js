@@ -51,8 +51,9 @@ function t(key) { return UI[lang][key]; }
 // The same questions come first for everyone; then the branch for fever / sore throat / other.
 const YES_NO = [["Ja", "Yes", "yes"], ["Nej", "No", "no"]];
 const QUESTIONS = [
-  { key: "who", da: "Hvem ringer du om?", en: "Who are you calling about?",
-    buttons: [["Et barn", "A child", "child"], ["En voksen", "An adult", "adult"]] },
+  // asked only when the CPR number was skipped; otherwise the age group comes from the CPR digits
+  { key: "who", da: "Hvor gammel er den, det drejer sig om?", en: "How old is the person?", when: a => !a.who,
+    buttons: [["Under 4 måneder", "Under 4 months", "infant"], ["4 måneder til 12 år", "4 months to 12 years", "child"], ["13 år og op", "13 and over", "adult"]] },
   { key: "what", da: "Hvad drejer det sig om?", en: "What is it about?",
     buttons: [["Feber", "Fever", "fever"], ["Ondt i halsen", "Sore throat", "throat"], ["Noget andet", "Something else", "other"]] },
   { key: "duration", da: "Hvor længe har det stået på?", en: "How long has it been going on?",
@@ -535,7 +536,13 @@ function handle(value) {
   if (state == "cpr") {
     if (value == "cpr-del") cpr = cpr.slice(0, -1);
     else if (value == "cpr-next" || value == "cpr-skip") {
-      state = "triage"; questionIndex = 0; asked = 0; answers = {};
+      answers = {};
+      if (value == "cpr-next") {
+        let group = ageGroupFromCpr(cpr);              // the first six digits are the birthday
+        if (group) answers.who = group;
+      }
+      state = "triage"; asked = 0;
+      questionIndex = nextQuestion(0);
       say(currentQuestion()[lang]);
     }
     else if (value.startsWith("cpr-") && cpr.length < 10) cpr += value.slice(4);
@@ -577,7 +584,24 @@ function nextQuestion(from) {
 
 function chooseProfile() {
   if (answers.what == "other") return "other";
-  return answers.what + "-" + answers.who;
+  let who = (answers.who == "infant") ? "child" : answers.who;   // no separate infant cards yet
+  return answers.what + "-" + who;
+}
+
+// akut.dk's age groups from the CPR number: ddmmyy in the first six digits.
+// Returns "infant" (0 to 3 months), "child" (4 months to 12 years) or "adult" (13 and over); null if unreadable.
+function ageGroupFromCpr(digits) {
+  if (digits.length < 6) return null;
+  let day = int(digits.slice(0, 2)), month = int(digits.slice(2, 4)), yy = int(digits.slice(4, 6));
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+  let now = new Date();
+  let century = (yy <= now.getFullYear() % 100) ? 2000 : 1900;    // 26 -> 2026, 85 -> 1985 (good enough for a demo)
+  let birth = new Date(century + yy, month - 1, day);
+  let months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  if (now.getDate() < birth.getDate()) months -= 1;
+  if (months < 4) return "infant";
+  if (months < 13 * 12) return "child";
+  return "adult";
 }
 
 function queueMoves() {
