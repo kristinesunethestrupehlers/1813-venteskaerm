@@ -28,7 +28,9 @@ const UI = {
     translated: "oversat af os",
     sayCpr: "Tast CPR-nummer, eller tryk 'kender det ikke'.", sayRed: "Læg på, og ring 1 1 2 nu.",
     sayQueued: (n, topic) => "Du er i køen som nummer " + n + ". Mens du venter, får du råd om " + topic + ". Bliver det værre, så læg på og ring 1 1 2.",
-    sayNumber: n => "Du er nu nummer " + n + ".", sayNext: "Du er den næste."
+    sayNumber: n => "Du er nu nummer " + n + ".", sayNext: "Du er den næste.",
+    whileWaitingGeneral: "Mens du venter, får du nogle praktiske råd.",
+    sayQueuedGeneral: n => "Du er i køen som nummer " + n + ". Mens du venter, får du nogle praktiske råd. Bliver det værre, så læg på og ring 1 1 2."
   },
   en: {
     subtitle: "Medical helpline", intro: "The medical helpline, when your own doctor is closed.", call: "Call",
@@ -39,7 +41,9 @@ const UI = {
     translated: "our translation",
     sayCpr: "Enter your CPR number, or tap 'don't know it'.", sayRed: "Hang up, and call 1 1 2 now.",
     sayQueued: (n, topic) => "You are number " + n + " in the queue. While you wait, you will get advice on " + topic + ". If it gets worse, hang up and call 1 1 2.",
-    sayNumber: n => "You are now number " + n + ".", sayNext: "You are next."
+    sayNumber: n => "You are now number " + n + ".", sayNext: "You are next.",
+    whileWaitingGeneral: "While you wait, you will get some practical advice.",
+    sayQueuedGeneral: n => "You are number " + n + " in the queue. While you wait, you will get some practical advice. If it gets worse, hang up and call 1 1 2."
   }
 };
 function t(key) { return UI[lang][key]; }
@@ -135,6 +139,7 @@ let soundStarted = false;
 const MUSIC_LEVEL = 0.45;
 let duck = 1;                  // 1 = full music, 0.25 = ducked while the voice speaks
 let speaking = false;
+let speakingUntil = 0;         // iPhone does not always report the end of a sentence; after this time we assume it is over
 let voices = [];
 let lastSpeechError = "";       // shown on screen with ?debug=1
 const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -313,7 +318,8 @@ function drawQueued() {
   fill(ink); textStyle(BOLD); textSize(40);
   text(t("number") + " " + queue, width / 2, height * 0.30);
   textStyle(NORMAL); textSize(16); textLeading(24);
-  text(t("whileWaiting") + " " + PAGES[profile].title[lang].toLowerCase() + ".", width * 0.12, height * 0.36, width * 0.76, height * 0.12);
+  let line = (profile == "general") ? t("whileWaitingGeneral") : t("whileWaiting") + " " + PAGES[profile].title[lang].toLowerCase() + ".";
+  text(line, width * 0.12, height * 0.36, width * 0.76, height * 0.12);
   fill(amber); textStyle(BOLD); textSize(14);
   text(t("worse"), width / 2, height * 0.52);
   button(width / 2, height * 0.66, width * 0.7, 60, t("next"), "go-wait");
@@ -541,7 +547,7 @@ function handle(value) {
     if (next == null) {
       profile = pageKey();
       state = "queued";
-      say(t("sayQueued")(queue, PAGES[profile].title[lang].toLowerCase()));
+      say(profile == "general" ? t("sayQueuedGeneral")(queue) : t("sayQueued")(queue, PAGES[profile].title[lang].toLowerCase()));
     } else {
       say(next[lang]);
     }
@@ -616,11 +622,10 @@ function startSound() {
 // quiet during triage, full while waiting, ducked while the voice speaks, fading down when you are next
 function updateMusic() {
   if (!soundStarted) return;
-  // iPhone does not always report that a sentence has ended, so the music engine is woken up here as well
-  if (IS_IOS && !speaking && !speechSynthesis.speaking && getAudioContext().state == "suspended") getAudioContext().resume();
+  if (speaking && millis() > speakingUntil && !speechSynthesis.speaking) speaking = false;   // missing onend on iPhone
   let level = (state == "waiting") ? 1 : 0.35;
   if (state == "waiting" && queue <= 1) level = 0.3;
-  let target = speaking ? 0.25 : 1;
+  let target = speaking ? (IS_IOS ? 0.1 : 0.25) : 1;   // the music ducks while the voice speaks
   duck = lerp(duck, target, 0.05);
   for (let name in musicFiles) {
     let volume = (name == musicChoice) ? MUSIC_LEVEL * level * duck : 0;
@@ -645,17 +650,10 @@ function say(text_) {
   let wanted = (lang == "da") ? "da" : "en";
   let match = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(wanted));
   if (match.length) u.voice = match[0];
-  u.onstart = () => { speaking = true; speechLog = "start"; };
-  u.onend = () => { speaking = false; speechLog = "end"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
-  u.onerror = (e) => { speaking = false; lastSpeechError = e.error || "error"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
+  u.onstart = () => { speaking = true; speakingUntil = millis() + 1500 + text_.length * 90; speechLog = "start"; };
+  u.onend = () => { speaking = false; speechLog = "end"; };
+  u.onerror = (e) => { speaking = false; lastSpeechError = e.error || "error"; };
   currentUtterance = u;
-
-  // on iPhone the audio engine must be paused BEFORE the voice starts, or the voice stays silent
-  if (IS_IOS && soundStarted) {
-    getAudioContext().suspend();
-    let safety = 1500 + text_.length * 90;          // resume even if onend never fires
-    setTimeout(() => { if (!speechSynthesis.speaking) getAudioContext().resume(); }, safety);
-  }
 
   if (speechSynthesis.paused) speechSynthesis.resume();   // iPhone can start in a paused state and then says nothing
   if (speechSynthesis.speaking || speechSynthesis.pending) {
