@@ -203,7 +203,9 @@ function draw() {
   if (PARAMS.get("debug")) {            // small status line for testing on the phone
     noStroke(); fill(ink); textSize(10); textStyle(NORMAL);
     let v = voices.filter(x => x.lang && x.lang.toLowerCase().startsWith("da")).length;
-    text("ios " + IS_IOS + " · voices " + voices.length + " (da " + v + ") · speaking " + speaking + " · err " + lastSpeechError + " · music " + musicChoice, width / 2, height - insetBottom - 8);
+    let ss = window.speechSynthesis;
+    text("ios " + IS_IOS + " · voices " + voices.length + " (da " + v + ") · log: " + speechLog + " · err: " + lastSpeechError, width / 2, height - insetBottom - 20);
+    text("api speaking " + (ss && ss.speaking) + " · pending " + (ss && ss.pending) + " · paused " + (ss && ss.paused) + " · music " + musicChoice + " · sound " + soundStarted, width / 2, height - insetBottom - 8);
   }
 }
 
@@ -221,6 +223,7 @@ function drawStart() {
   text(t("intro"), width * 0.15, height * 0.42, width * 0.7, height * 0.12);
 
   button(width / 2, height * 0.62, width * 0.7, 60, t("call"), "call");
+  if (PARAMS.get("debug")) button(width / 2, height * 0.62 + 80, width * 0.5, 44, "Test stemme", "voice-test", 15);
 
   textSize(12); fill(inkSoft);
   text(t("prototype"), width / 2, height - insetBottom - 30);
@@ -493,6 +496,7 @@ function tap(mx, my) {
 }
 
 function handle(value) {
+  if (value == "voice-test") { voiceTest(); return; }
   if (value == "sunmoon")  { night = !night; setColors(); return; }
   if (value == "language") { lang = (lang == "da") ? "en" : "da"; return; }
   if (value == "restart")  { restart(); return; }
@@ -635,13 +639,26 @@ function say(text_) {
     setTimeout(() => { if (!speechSynthesis.speaking) getAudioContext().resume(); }, safety);
   }
 
+  if (speechSynthesis.paused) speechSynthesis.resume();   // iPhone can start in a paused state and then says nothing
   if (speechSynthesis.speaking || speechSynthesis.pending) {
     speechSynthesis.cancel();
-    setTimeout(() => { speechLog = "speak(after cancel)"; speechSynthesis.speak(u); }, 120);
+    setTimeout(() => { speechLog = "speak(after cancel)"; speechSynthesis.resume(); speechSynthesis.speak(u); }, 120);
   } else {
     speechLog = "speak";
     speechSynthesis.speak(u);
   }
+}
+
+// the simplest possible test: no voice object, no language, inside the tap (?debug=1 button)
+function voiceTest() {
+  let u = new SpeechSynthesisUtterance("Test. En, to, tre.");
+  u.onstart = () => { speechLog = "TEST start"; };
+  u.onend = () => { speechLog = "TEST end"; };
+  u.onerror = (e) => { lastSpeechError = "TEST " + (e.error || "error"); };
+  currentUtterance = u;
+  if (speechSynthesis.paused) speechSynthesis.resume();
+  speechLog = "TEST speak";
+  speechSynthesis.speak(u);
 }
 
 
