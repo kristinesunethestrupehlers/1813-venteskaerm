@@ -586,8 +586,11 @@ function restart() {
   if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
 }
 
-function mousePressed() { tap(mouseX, mouseY); }
-function touchStarted() { tap(mouseX, mouseY); return false; }
+// Taps are handled when the finger is LIFTED, not when it lands: iPhone only counts touchend and click
+// as "the user did something", and speech (and audio) may only start inside such a gesture.
+function mouseReleased() { tap(mouseX, mouseY); }
+function touchEnded()    { tap(mouseX, mouseY); return false; }
+function touchStarted()  { return false; }        // stops iPhone from scrolling or zooming the page
 
 function keyPressed() {
   if (key === " ") { if (state == "waiting") queueMoves(); }
