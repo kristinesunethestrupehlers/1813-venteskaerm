@@ -567,7 +567,7 @@ function queueMoves() {
 
 function restart() {
   state = "start"; queue = QUEUE_START; answers = {}; asked = 0; cardIndex = 0; cardSpoken = -1; cpr = ""; profile = "general";
-  if (window.speechSynthesis) speechSynthesis.cancel();
+  if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
 }
 
 function mousePressed() { tap(mouseX, mouseY); }
@@ -591,13 +591,6 @@ function startSound() {
     musicFiles[name].setVolume(0);
     musicFiles[name].loop();
   }
-  // iPhone Safari only allows speech that starts inside a tap: a silent utterance unlocks it
-  if (window.speechSynthesis) {
-    let u = new SpeechSynthesisUtterance("hej");
-    u.volume = 0;
-    u.lang = "da-DK";
-    speechSynthesis.speak(u);
-  }
   soundStarted = true;
 }
 
@@ -615,22 +608,33 @@ function updateMusic() {
 }
 
 // the phone's own voice, Danish or English
+// iPhone rules learned the hard way: the first utterance must start inside the tap (no timer),
+// cancel() only when something is actually speaking (otherwise the next utterance is dropped silently),
+// and keep a reference to the utterance so it is not garbage-collected mid-sentence.
+let currentUtterance = null;
+let speechLog = "";             // for the ?debug=1 line
+
 function say(text_) {
   if (!window.speechSynthesis || !voiceOn) return;
-  speechSynthesis.cancel();
-  // iPhone drops an utterance that starts right after cancel(), so we wait a moment
-  setTimeout(() => {
-    let u = new SpeechSynthesisUtterance(text_);
-    u.lang = (lang == "da") ? "da-DK" : "en-GB";
-    u.rate = 0.95;
-    let wanted = (lang == "da") ? "da" : "en";
-    let match = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(wanted));
-    if (match.length) u.voice = match[0];
-    u.onstart = () => { speaking = true; if (IS_IOS && soundStarted) getAudioContext().suspend(); };
-    u.onend = () => { speaking = false; if (IS_IOS && soundStarted) getAudioContext().resume(); };
-    u.onerror = (e) => { speaking = false; lastSpeechError = e.error || "error"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
+  let u = new SpeechSynthesisUtterance(text_);
+  u.lang = (lang == "da") ? "da-DK" : "en-GB";
+  u.rate = 0.95;
+  u.volume = 1;
+  let wanted = (lang == "da") ? "da" : "en";
+  let match = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(wanted));
+  if (match.length) u.voice = match[0];
+  u.onstart = () => { speaking = true; speechLog = "start"; if (IS_IOS && soundStarted) getAudioContext().suspend(); };
+  u.onend = () => { speaking = false; speechLog = "end"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
+  u.onerror = (e) => { speaking = false; lastSpeechError = e.error || "error"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
+  currentUtterance = u;
+
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    speechSynthesis.cancel();
+    setTimeout(() => { speechLog = "speak(after cancel)"; speechSynthesis.speak(u); }, 120);
+  } else {
+    speechLog = "speak";
     speechSynthesis.speak(u);
-  }, 80);
+  }
 }
 
 
