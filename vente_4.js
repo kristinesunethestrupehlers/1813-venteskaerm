@@ -616,6 +616,8 @@ function startSound() {
 // quiet during triage, full while waiting, ducked while the voice speaks, fading down when you are next
 function updateMusic() {
   if (!soundStarted) return;
+  // iPhone does not always report that a sentence has ended, so the music engine is woken up here as well
+  if (IS_IOS && !speaking && !speechSynthesis.speaking && getAudioContext().state == "suspended") getAudioContext().resume();
   let level = (state == "waiting") ? 1 : 0.35;
   if (state == "waiting" && queue <= 1) level = 0.3;
   let target = speaking ? 0.25 : 1;
