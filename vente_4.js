@@ -585,7 +585,7 @@ function keyPressed() {
 // ========== SOUND ==========
 
 function startSound() {
-  if (soundStarted) return;
+  if (soundStarted || musicChoice == "off") return;   // with music off the audio engine never starts (it can silence the voice on iPhone)
   userStartAudio();
   for (let name in musicFiles) {                     // both files loop all the time, only the volume changes
     musicFiles[name].setVolume(0);
@@ -623,10 +623,17 @@ function say(text_) {
   let wanted = (lang == "da") ? "da" : "en";
   let match = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(wanted));
   if (match.length) u.voice = match[0];
-  u.onstart = () => { speaking = true; speechLog = "start"; if (IS_IOS && soundStarted) getAudioContext().suspend(); };
+  u.onstart = () => { speaking = true; speechLog = "start"; };
   u.onend = () => { speaking = false; speechLog = "end"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
   u.onerror = (e) => { speaking = false; lastSpeechError = e.error || "error"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
   currentUtterance = u;
+
+  // on iPhone the audio engine must be paused BEFORE the voice starts, or the voice stays silent
+  if (IS_IOS && soundStarted) {
+    getAudioContext().suspend();
+    let safety = 1500 + text_.length * 90;          // resume even if onend never fires
+    setTimeout(() => { if (!speechSynthesis.speaking) getAudioContext().resume(); }, safety);
+  }
 
   if (speechSynthesis.speaking || speechSynthesis.pending) {
     speechSynthesis.cancel();
