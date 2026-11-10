@@ -136,6 +136,10 @@ const MUSIC_LEVEL = 0.45;
 let duck = 1;                  // 1 = full music, 0.25 = ducked while the voice speaks
 let speaking = false;
 let voices = [];
+let lastSpeechError = "";       // shown on screen with ?debug=1
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const PARAMS = new URLSearchParams(window.location.search);   // ?music=off  ?debug=1  ?voice=off
+let voiceOn = PARAMS.get("voice") != "off";
 
 // ---------- BUTTONS ----------
 let buttons = [];              // the buttons on screen right now: {x, y, w, h, value}
@@ -154,6 +158,7 @@ function setup() {
   textFont("Helvetica");
 
   readInsets();
+  if (PARAMS.get("music")) musicChoice = PARAMS.get("music");   // "piano", "mindfulness" or "off"
   night = isNight();           // follows the sun over Copenhagen, not the clock
   setColors();
 
@@ -194,6 +199,12 @@ function draw() {
   if (state == "start") drawLanguage();              // demo button, start screen only
 
   updateMusic();
+
+  if (PARAMS.get("debug")) {            // small status line for testing on the phone
+    noStroke(); fill(ink); textSize(10); textStyle(NORMAL);
+    let v = voices.filter(x => x.lang && x.lang.toLowerCase().startsWith("da")).length;
+    text("ios " + IS_IOS + " · voices " + voices.length + " (da " + v + ") · speaking " + speaking + " · err " + lastSpeechError + " · music " + musicChoice, width / 2, height - insetBottom - 8);
+  }
 }
 
 
@@ -580,9 +591,11 @@ function startSound() {
     musicFiles[name].setVolume(0);
     musicFiles[name].loop();
   }
-  // iPhone Safari only allows speech that starts inside a tap: an empty utterance unlocks it
+  // iPhone Safari only allows speech that starts inside a tap: a silent utterance unlocks it
   if (window.speechSynthesis) {
-    let u = new SpeechSynthesisUtterance("");
+    let u = new SpeechSynthesisUtterance("hej");
+    u.volume = 0;
+    u.lang = "da-DK";
     speechSynthesis.speak(u);
   }
   soundStarted = true;
@@ -603,7 +616,7 @@ function updateMusic() {
 
 // the phone's own voice, Danish or English
 function say(text_) {
-  if (!window.speechSynthesis) return;
+  if (!window.speechSynthesis || !voiceOn) return;
   speechSynthesis.cancel();
   // iPhone drops an utterance that starts right after cancel(), so we wait a moment
   setTimeout(() => {
@@ -613,9 +626,9 @@ function say(text_) {
     let wanted = (lang == "da") ? "da" : "en";
     let match = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(wanted));
     if (match.length) u.voice = match[0];
-    u.onstart = () => { speaking = true; };
-    u.onend = () => { speaking = false; };
-    u.onerror = () => { speaking = false; };
+    u.onstart = () => { speaking = true; if (IS_IOS && soundStarted) getAudioContext().suspend(); };
+    u.onend = () => { speaking = false; if (IS_IOS && soundStarted) getAudioContext().resume(); };
+    u.onerror = (e) => { speaking = false; lastSpeechError = e.error || "error"; if (IS_IOS && soundStarted) getAudioContext().resume(); };
     speechSynthesis.speak(u);
   }, 80);
 }
