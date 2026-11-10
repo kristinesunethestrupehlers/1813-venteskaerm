@@ -26,11 +26,11 @@ const UI = {
     queued: "DU ER I KØEN", number: "Nr.", whileWaiting: "Mens du venter, får du råd om", worse: "Bliver det værre: læg på og ring 112",
     youAre: "Du er nr.", minutes: "minutter endnu", approx: "Ca.", youAreNext: "Du er den næste", nurseSoon: "Sygeplejersken tager telefonen om lidt",
     translated: "oversat af os",
-    sayCpr: "Tast CPR-nummer, eller tryk 'kender det ikke'.", sayRed: "Læg på, og ring 1 1 2 nu.",
-    sayQueued: (n, topic) => "Du er i køen som nummer " + n + ". Mens du venter, får du råd om " + topic + ". Bliver det værre, så læg på og ring 1 1 2.",
+    sayCpr: "Tast CPR-nummer, eller tryk 'kender det ikke'.", sayRed: "Læg på, og ring et, et, to nu.",
+    sayQueued: (n, topic) => "Du er i køen som nummer " + n + ". Mens du venter, får du råd om " + topic + ". Bliver det værre, så læg på og ring et, et, to.",
     sayNumber: n => "Du er nu nummer " + n + ".", sayNext: "Du er den næste.",
     whileWaitingGeneral: "Mens du venter, får du nogle praktiske råd.",
-    sayQueuedGeneral: n => "Du er i køen som nummer " + n + ". Mens du venter, får du nogle praktiske råd. Bliver det værre, så læg på og ring 1 1 2."
+    sayQueuedGeneral: n => "Du er i køen som nummer " + n + ". Mens du venter, får du nogle praktiske råd. Bliver det værre, så læg på og ring et, et, to."
   },
   en: {
     subtitle: "Medical helpline", intro: "The medical helpline, when your own doctor is closed.", call: "Call",
@@ -39,11 +39,11 @@ const UI = {
     queued: "YOU ARE IN THE QUEUE", number: "No.", whileWaiting: "While you wait, you will get advice on", worse: "If it gets worse: hang up and call 112",
     youAre: "You are no.", minutes: "minutes to go", approx: "About", youAreNext: "You are next", nurseSoon: "The nurse will answer shortly",
     translated: "our translation",
-    sayCpr: "Enter your CPR number, or tap 'don't know it'.", sayRed: "Hang up, and call 1 1 2 now.",
-    sayQueued: (n, topic) => "You are number " + n + " in the queue. While you wait, you will get advice on " + topic + ". If it gets worse, hang up and call 1 1 2.",
+    sayCpr: "Enter your CPR number, or tap 'don't know it'.", sayRed: "Hang up, and call one, one, two now.",
+    sayQueued: (n, topic) => "You are number " + n + " in the queue. While you wait, you will get advice on " + topic + ". If it gets worse, hang up and call one, one, two.",
     sayNumber: n => "You are now number " + n + ".", sayNext: "You are next.",
     whileWaitingGeneral: "While you wait, you will get some practical advice.",
-    sayQueuedGeneral: n => "You are number " + n + " in the queue. While you wait, you will get some practical advice. If it gets worse, hang up and call 1 1 2."
+    sayQueuedGeneral: n => "You are number " + n + " in the queue. While you wait, you will get some practical advice. If it gets worse, hang up and call one, one, two."
   }
 };
 function t(key) { return UI[lang][key]; }
