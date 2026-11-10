@@ -223,7 +223,19 @@ function drawStart() {
   text(t("intro"), width * 0.15, height * 0.42, width * 0.7, height * 0.12);
 
   button(width / 2, height * 0.62, width * 0.7, 60, t("call"), "call");
-  if (PARAMS.get("debug")) button(width / 2, height * 0.62 + 80, width * 0.5, 44, "Test stemme", "voice-test", 15);
+  if (PARAMS.get("debug")) {
+    button(width / 2, height * 0.62 + 80, width * 0.5, 44, "Test stemme", "voice-test", 15);
+    if (testTapped > 0) {                               // big, readable answer from the phone
+      let ss = window.speechSynthesis;
+      fill(red(cardFill), green(cardFill), blue(cardFill), 230);
+      rect(width * 0.08, height * 0.12, width * 0.84, 150, 20);
+      fill(ink); textSize(14); textLeading(22); textStyle(NORMAL);
+      let secs = round((millis() - testTapped) / 1000);
+      text("Trykket for " + secs + " s siden\nlog: " + speechLog + "\nfejl: " + (lastSpeechError || "ingen") +
+           "\napi: speaking " + (ss && ss.speaking) + ", pending " + (ss && ss.pending) + ", paused " + (ss && ss.paused),
+           width * 0.1, height * 0.12 + 10, width * 0.8, 140);
+    }
+  }
 
   textSize(12); fill(inkSoft);
   text(t("prototype"), width / 2, height - insetBottom - 30);
@@ -496,7 +508,7 @@ function tap(mx, my) {
 }
 
 function handle(value) {
-  if (value == "voice-test") { voiceTest(); return; }
+  if (value == "voice-test") { testTapped = millis(); try { voiceTest(); } catch (e) { lastSpeechError = "exception " + e.message; } return; }
   if (value == "sunmoon")  { night = !night; setColors(); return; }
   if (value == "language") { lang = (lang == "da") ? "en" : "da"; return; }
   if (value == "restart")  { restart(); return; }
@@ -617,6 +629,7 @@ function updateMusic() {
 // and keep a reference to the utterance so it is not garbage-collected mid-sentence.
 let currentUtterance = null;
 let speechLog = "";             // for the ?debug=1 line
+let testTapped = 0;             // millis() when the voice test button was tapped
 
 function say(text_) {
   if (!window.speechSynthesis || !voiceOn) return;
