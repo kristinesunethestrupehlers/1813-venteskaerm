@@ -78,17 +78,19 @@ function currentStep() {
     return st;
   }
   if (answers.sub == null) {
+    if (chosenTheme().sub.length == 1) { answers.sub = "0"; return currentStep(); }   // only one sub-theme: no need to ask
     let st = Object.assign({}, COMMON_STEPS.sub);
     st.buttons = chosenTheme().sub.map((sb, i) => [sb[0], sb[1], String(i)]);
     return st;
   }
+  if (pageKey() == "direct") return null;             // psychiatric help and assault: straight through, no more questions
   if (!answers.duration) return COMMON_STEPS.duration;
   if (!answers.worse) return COMMON_STEPS.worse;
   let page = PAGES[pageKey()];
   for (let i = 0; i < page.questions.length; i++) {
     if (answers["q" + i] === undefined) {
       let q = page.questions[i];
-      return { key: "q" + i, da: q.da, en: q.en, buttons: q.buttons || YES_NO, redIf: q.redIf };
+      return { key: "q" + i, da: q.da, en: q.en || q.da, buttons: q.buttons || YES_NO, redIf: q.redIf };
     }
   }
   if (!answers.chronic) return COMMON_STEPS.chronic;
@@ -318,7 +320,7 @@ function drawQueued() {
   fill(ink); textStyle(BOLD); textSize(40);
   text(t("number") + " " + queue, width / 2, height * 0.30);
   textStyle(NORMAL); textSize(16); textLeading(24);
-  let line = (profile == "general") ? t("whileWaitingGeneral") : t("whileWaiting") + " " + PAGES[profile].title[lang].toLowerCase() + ".";
+  let line = (profile == "general") ? t("whileWaitingGeneral") : t("whileWaiting") + " " + (PAGES[profile].title[lang] || PAGES[profile].title.da).toLowerCase() + ".";
   text(line, width * 0.12, height * 0.36, width * 0.76, height * 0.12);
   fill(amber); textStyle(BOLD); textSize(14);
   text(t("worse"), width / 2, height * 0.52);
@@ -332,7 +334,7 @@ function drawCard(breath) {
   let cards = PAGES[profile].cards;
   let elapsed = millis() - cardStart;
 
-  if (queue <= 1) {
+  if (queue <= 1 && profile != "direct") {
     if (elapsed >= FADE) return;                    // you are next: the card fades out and does not return
   } else if (elapsed > CARD_TIME) {
     cardIndex = (cardIndex + 1) % cards.length;
@@ -341,14 +343,14 @@ function drawCard(breath) {
   }
 
   let a = 255;
-  if (queue <= 1) a = map(elapsed, 0, FADE, 255, 0);
+  if (queue <= 1 && profile != "direct") a = map(elapsed, 0, FADE, 255, 0);
   else {
     if (elapsed < FADE) a = map(elapsed, 0, FADE, 0, 255);
     if (elapsed > CARD_TIME - FADE) a = map(elapsed, CARD_TIME - FADE, CARD_TIME, 255, 0);
   }
 
   // the voice reads the card once it has faded in
-  if (queue > 1 && cardSpoken != cardIndex && elapsed > FADE * 0.6) {
+  if ((queue > 1 || profile == "direct") && cardSpoken != cardIndex && elapsed > FADE * 0.6) {
     cardSpoken = cardIndex;
     say(cardText(cards[cardIndex]));
   }
@@ -371,20 +373,21 @@ function drawCard(breath) {
   let c = cards[cardIndex];
   fill(red(inkSoft), green(inkSoft), blue(inkSoft), a);
   textSize(13); textStyle(NORMAL);
-  text(c[0][lang].toUpperCase(), 0, -h / 2 + 32);
+  text((c[0][lang] || c[0].da).toUpperCase(), 0, -h / 2 + 32);
   fill(red(ink), green(ink), blue(ink), a);
   textSize(22); textLeading(30);
   text(cardText(c), -w / 2 + 28, -h / 2 + 56, w - 56, h - 100);
   fill(red(inkSoft), green(inkSoft), blue(inkSoft), a * 0.8);
   textSize(12);
-  let source = (profile == "general") ? "1813" : "akut.dk";
-  let credit = source + " · " + PAGES[profile].title[lang];
-  if (lang == "en" && source == "akut.dk") credit += " · " + t("translated");
+  let source = (profile == "general" || profile == "direct") ? "1813" : "akut.dk";
+  let title = PAGES[profile].title[lang] || PAGES[profile].title.da;
+  let credit = source + " · " + title;
+  if (lang == "en" && source == "akut.dk" && PAGES[profile].title.en) credit += " · " + t("translated");
   text(credit, 0, h / 2 - 24);
   pop();
 }
 
-function cardText(card) { return lang == "da" ? card[1] : card[2]; }
+function cardText(card) { return (lang == "da" || !card[2]) ? card[1] : card[2]; }
 
 function drawSky(breath) {
   let k = (sin(millis() * 0.000017) + 1) / 2;       // drifts between the two palettes over about 3 minutes
@@ -544,10 +547,15 @@ function handle(value) {
     asked += 1;
     if (step.redIf && value == step.redIf) { state = "red"; say(t("sayRed")); return; }
     let next = currentStep();
-    if (next == null) {
+    if (next == null && pageKey() == "direct") {
+      profile = "direct"; queue = 1;                   // straight through: no number, you are next
+      state = "waiting"; cardStart = millis(); cardIndex = 0; cardSpoken = -1;
+      figureX = figurePosition(1); figureTarget = figureX;
+      say(t("sayNext"));
+    } else if (next == null) {
       profile = pageKey();
       state = "queued";
-      say(profile == "general" ? t("sayQueuedGeneral")(queue) : t("sayQueued")(queue, PAGES[profile].title[lang].toLowerCase()));
+      say(profile == "general" ? t("sayQueuedGeneral")(queue) : t("sayQueued")(queue, (PAGES[profile].title[lang] || PAGES[profile].title.da).toLowerCase()));
     } else {
       say(next[lang]);
     }
