@@ -3,20 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <!-- lets the page sit on the home screen as an "app" without Safari's bars -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="1813">
   <link rel="apple-touch-icon" href="ikon.png">
-  <title>1813 · ventetid</title>
+  <title>1813 · venteunivers</title>
   <script src="libraries/p5.min.js"></script>
   <script src="libraries/p5.sound.min.js"></script>
-  <script src="content.js?v=5"></script>
-  <script src="vente_4.js?v=15"></script>
+  <script src="content.js?v=6"></script>
+  <script src="vente_5.js?v=1"></script>
   <style>
-    html, body { padding: 0; margin: 0; overflow: hidden; background: #ffb48c; height: 100%; }
+    html, body { padding: 0; margin: 0; overflow: hidden; background: #cfe6f4; height: 100%; }
     canvas { display: block; }
-    /* two invisible probes that are exactly as tall as the phone's safe areas; the sketch reads their height */
     #inset-top    { position: fixed; top: 0; left: 0; width: 1px; height: env(safe-area-inset-top, 0px); visibility: hidden; }
     #inset-bottom { position: fixed; bottom: 0; left: 0; width: 1px; height: env(safe-area-inset-bottom, 0px); visibility: hidden; }
   </style>
