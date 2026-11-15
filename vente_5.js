@@ -427,6 +427,7 @@ function drawDone() {
   let c = col();
   noStroke(); fill(c.ink); textSize(26); textStyle(BOLD); text("Tak", width/2, insetTop + 220);
   textStyle(NORMAL); fill(c.soft); textSize(15); text("Dine svar er gemt til testlederen.", width/2, insetTop + 256);
+  textSize(11); text(remote.connected_any ? "Sendt til testlederens computer" : "Gemt på telefonen (ingen forbindelse til testlederen)", width/2, insetTop + 280);
   primaryButton(width/2, insetTop + 330, min(width*0.6, 280), 52, "Ny test", "restart");
 }
 
@@ -868,7 +869,12 @@ function panelChoice(x, y, w, h, label, value, selected, size) {
   buttons.unshift({ x, y, w, h, value });
 }
 function loadResults() { try { return JSON.parse(localStorage.getItem("venteunivers-results") || "[]"); } catch (e) { return []; } }
-function saveResult(r) { let a = loadResults(); a.push(r); try { localStorage.setItem("venteunivers-results", JSON.stringify(a)); } catch (e) {} }
+function saveResult(r) {
+  let a = loadResults(); a.push(r);
+  try { localStorage.setItem("venteunivers-results", JSON.stringify(a)); } catch (e) {}
+  remotePublish("result", JSON.stringify(r));                       // one row to the test leader's page, kept there
+  remotePublish("results", resultsCsv(), { retain: true });        // the whole file, so a page opened later gets it too
+}
 function resultsCsv() {
   let rows = [["tid","person","version","stoej","lyde","optrapning","situation","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"]];
   for (let r of loadResults()) rows.push([r.time, r.scenario, r.mode || "app", r.noise, r.events || 0, r.escalate || "nej", r.situation || "", r.waitMin, r.estimateMin, r.calm, r.energy, r.flowDone, r.status]);

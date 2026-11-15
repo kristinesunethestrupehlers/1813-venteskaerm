@@ -109,15 +109,19 @@
   <div class="hint">Deltageren skal vælge "Bliv i køen" eller "Læg på og ring 112". Valget gemmes i resultaterne.</div>
 </div>
 
-<div class="box">
+<div class="box" id="resultsBox">
   <h2>Resultater</h2>
+  <div id="banner" style="display:none; background:#2F7A52; color:#fff; border-radius:12px; padding:10px 12px; font-size:14px; margin-bottom:10px"></div>
+  <div style="font-size:14px; margin-bottom:8px"><b id="rcount">0</b> deltagere gemt her på computeren. Hver deltagers svar sendes automatisk hertil, når de trykker det sidste svar, og gemmes i denne browser. Gem filen, når dagen er slut.</div>
   <div class="row">
-    <button onclick="send({csv:true})">Hent CSV fra telefonen</button>
+    <button onclick="downloadCsv()">Gem CSV som fil</button>
     <button class="ghost" onclick="copyCsv()">Kopiér</button>
-    <button class="ghost" onclick="if(confirm('Slet alle resultater på deltagerens telefon?')) send({clear:true})">Slet på telefonen</button>
+    <button class="ghost" onclick="send({csv:true})">Hent igen fra telefonen</button>
+    <button class="ghost" onclick="if(confirm('Slet resultaterne her på computeren? (Telefonen beholder sine.)')) { localStorage.removeItem('vu-results'); rows = []; renderResults(); }">Slet her</button>
   </div>
   <div style="height:8px"></div>
-  <textarea id="csv" readonly placeholder="CSV kommer her, når du henter den."></textarea>
+  <textarea id="csv" readonly placeholder="Her samles en række pr. deltager."></textarea>
+  <div class="hint">CSV står for comma-separated values: en almindelig tekstfil med én række pr. deltager, som Excel, Numbers og Google Sheets kan åbne. Kolonnerne adskilles her med semikolon, som dansk Excel forventer.</div>
 </div>
 
 <script>
@@ -132,12 +136,13 @@ const BROKERS = [["mosquitto", "wss://test.mosquitto.org:8081/mqtt"], ["emqx", "
 let clients = [], connected = {}, lastSent = { id: "", at: 0, what: "" };
 for (let [name, url] of BROKERS) {
   let c = mqtt.connect(url, { clientId: "vu-remote-" + name + "-" + Math.random().toString(16).slice(2,10), keepalive: 30, reconnectPeriod: 5000, connectTimeout: 8000 });
-  c.on("connect", () => { connected[name] = true; setConn(); c.subscribe("venteunivers/" + room + "/state"); c.subscribe("venteunivers/" + room + "/results"); });
+  c.on("connect", () => { connected[name] = true; setConn(); c.subscribe("venteunivers/" + room + "/state"); c.subscribe("venteunivers/" + room + "/results"); c.subscribe("venteunivers/" + room + "/result"); });
   c.on("close", () => { connected[name] = false; setConn(); });
   c.on("error", () => {});
   c.on("message", (t, m) => {
-    if (t.endsWith("/results")) { document.getElementById("csv").value = m.toString(); return; }
-    try { let n = JSON.parse(m.toString()); if (!st.t || n.t >= st.t) { st = n; render(); } } catch (e) {}
+    if (t.endsWith("/result")) { try { addRow(JSON.parse(m.toString())); } catch (e) {} return; }
+    if (t.endsWith("/results")) { mergeCsv(m.toString()); return; }
+    try { let n = JSON.parse(m.toString()); if (!st.t || n.t >= st.t) { let was = st.state; st = n; render(); if (n.state == "done" && was != "done") showBanner("Deltageren er færdig. Svarene er gemt her på computeren. Klar til den næste: tryk Start, når kortet er trukket."); } } catch (e) {}
   });
   clients.push(c);
 }
@@ -145,7 +150,17 @@ function setConn() { let on = BROKERS.filter(b => connected[b[0]]).map(b => b[0]
 function send(cmd) { cmd.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); lastSent = { id: cmd.id, at: Date.now(), what: Object.keys(cmd).filter(k => k != "id").join(" ") }; let p = JSON.stringify(cmd); let n = 0; for (let c of clients) { try { if (c.connected) { c.publish("venteunivers/" + room + "/cmd", p); n++; } } catch (e) {} } if (!n) alert("Ikke forbundet til nogen broker. Tjek nettet, og prøv igen."); render(); }
 function set(k, v) { send({ set: { [k]: v } }); st.test[k] = v; if (k == "age") st.age = v; render(); }
 function sendCustom() { let t = document.getElementById("custom").value.trim(); if (t) send({ situation: t }); }
-function copyCsv() { navigator.clipboard.writeText(document.getElementById("csv").value); }
+// the results live here on the computer, one row per participant, whatever happens to the phone
+const HEAD = ["tid","person","version","stoej","lyde","optrapning","situation","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"];
+let rows = []; try { rows = JSON.parse(localStorage.getItem("vu-results") || "[]"); } catch (e) {}
+function rowKey(r) { return r.time + "|" + r.scenario + "|" + r.estimateMin + "|" + r.calm + "|" + r.energy; }
+function addRow(r) { if (rows.some(x => rowKey(x) == rowKey(r))) return; rows.push(r); try { localStorage.setItem("vu-results", JSON.stringify(rows)); } catch (e) {} renderResults(); }
+function mergeCsv(txt) { let lines = txt.split("\n").slice(1); for (let l of lines) { let c = l.split(";"); if (c.length < 13) continue; addRow({ time: c[0], scenario: c[1], mode: c[2], noise: c[3], events: c[4], escalate: c[5], situation: c[6], waitMin: c[7], estimateMin: c[8], calm: c[9], energy: c[10], flowDone: c[11], status: c[12] }); } }
+function csvText() { return [HEAD.join(";")].concat(rows.map(r => [r.time, r.scenario, r.mode || "app", r.noise, r.events || 0, r.escalate || "nej", r.situation || "", r.waitMin, r.estimateMin, r.calm, r.energy, r.flowDone, r.status].join(";"))).join("\n"); }
+function renderResults() { document.getElementById("csv").value = csvText(); document.getElementById("rcount").textContent = rows.length; }
+function copyCsv() { navigator.clipboard.writeText(csvText()); }
+function downloadCsv() { let blob = new Blob(["\ufeff" + csvText()], { type: "text/csv;charset=utf-8" }); let a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "venteunivers-resultater-" + new Date().toISOString().slice(0, 10) + ".csv"; document.body.appendChild(a); a.click(); a.remove(); }
+function showBanner(t) { let b = document.getElementById("banner"); b.textContent = t; b.style.display = "block"; document.getElementById("resultsBox").scrollIntoView({ behavior: "smooth", block: "nearest" }); setTimeout(() => { b.style.display = "none"; }, 20000); }
 function changeRoom() { let r = prompt("Rumkode (samme som ?rum= på appens link):", room); if (r) { localStorage.setItem("vu-room", r.toLowerCase()); location.search = "?rum=" + encodeURIComponent(r.toLowerCase()); } }
 function btn(label, on, fn, cls) { let b = document.createElement("button"); b.textContent = label; if (on) b.className = "on"; if (cls) b.className = cls; b.onclick = fn; return b; }
 function fill(id, items) { let el = document.getElementById(id); el.innerHTML = ""; items.forEach(b => el.appendChild(b)); }
@@ -169,7 +184,7 @@ function render() {
   fill("statuses", [["stones","sten"],["bar","bar"],["figure","figur"]].map(s => btn(s[1], t.status == s[0], () => set("status", s[0]))));
   fill("sits", SITUATIONS[group].map(s => btn(s, false, () => send({ situation: s }), "red")));
 }
-render(); setInterval(render, 1000);
+render(); renderResults(); setInterval(render, 1000);
 </script>
 </body>
 </html>
