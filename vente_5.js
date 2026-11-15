@@ -456,7 +456,7 @@ function drawSituation() {
   noStroke(); fill("#B2321C"); rect(x + 30, y + 196, w - 60, 44, 22); fill("#FFFFFF"); textSize(16); textStyle(BOLD); text("Læg på og ring 112", width/2, y + 218); textStyle(NORMAL);
   buttons.push({ x: x + 30, y: y + 196, w: w - 60, h: 44, value: "sit:112" });
 }
-function showSituation(text) { situation = { text, at: millis() }; situationChoice = ""; say(text, true); }
+function showSituation(text) { situation = { text, at: millis() }; situationChoice = ""; }   // shown, never spoken: the voice is 1813's, not the test leader's
 
 // ============================================================ shared pieces
 function drawTopBar(title, back) {
@@ -1008,6 +1008,7 @@ function updateSound(breath) {
 }
 function say(text_, force) {
   if ((!voiceOn && !force) || !window.speechSynthesis) return;
+  text_ = text_.replace(/\b1813\b/g, "atten tretten").replace(/\b112\b/g, "et, et, to");   // said the Danish way, not as numbers
   let u = new SpeechSynthesisUtterance(text_);
   u.lang = "da-DK"; u.rate = 0.95; u.volume = 1;
   let m = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("da")); if (m.length) u.voice = m[0];
