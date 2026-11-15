@@ -156,7 +156,7 @@ function tick() {
   lastTick = millis();
   // the queue ends: the nurse answers
   if (waitStart && !answeredAt && waitRemaining() <= 0 && ["home","flow","confirm","sent","wait","calm","advice","red","call"].includes(state)) {
-    answeredAt = millis(); situation = null; enter("answered"); stopAmbience(); nurseAnswers();
+    answeredAt = millis(); situation = null; enter("answered"); silenceAll(); nurseAnswers();
   }
   // the control condition repeats today's message every 30 s
   if (state == "call" && !answeredAt && millis() - callMsgAt > 30000) { callMsgAt = millis(); say("Velkommen til Akuttelefonen 1813. Du er nummer " + queueNumber() + " i køen. Ved livstruende sygdom eller tilskadekomst: læg på, og ring et, et, to.", true); }
@@ -909,7 +909,7 @@ function handle(v) {
     if (k == "music") musicOn = !musicOn;
     return;
   }
-  if (v.startsWith("sit:")) { situationChoice = v == "sit:stay" ? "blev i køen" : "ringede 112"; situation = null; if (v == "sit:112") { hungUp = true; answeredAt = millis(); stopAmbience(); enter("answered"); } return; }
+  if (v.startsWith("sit:")) { situationChoice = v == "sit:stay" ? "blev i køen" : "ringede 112"; situation = null; if (v == "sit:112") { hungUp = true; answeredAt = millis(); silenceAll(); enter("answered"); } return; }
   if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); fitNoiseToAge(); answers = {}; startTest(); return; }
   if (state == "sms" && v == "open-link") { enter("intro"); return; }
   if (v == "home") { enter("home"); return; }
@@ -979,7 +979,7 @@ function startTest() {
   else enter("sms");
 }
 function restart() {
-  stopAmbience();
+  silenceAll();
   state = "age"; stateSince = millis(); waitStart = 0; answeredAt = 0; answers = {}; qIndex = 0; flowDone = false; cardIndex = 0; lastSpokenNumber = 0;
   situation = null; situationChoice = ""; hungUp = false; eventsPlayed = 0; nextEvent = 0; callMsgAt = 0;
   if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
@@ -1025,6 +1025,17 @@ function startAmbience() {
   ambienceOn = true;
 }
 function stopAmbience() { ambienceOn = false; }
+// the call is answered: everything else goes quiet at once (noise, music, hold music, ringback, voice, pending sudden sounds)
+function silenceAll() {
+  ambienceOn = false; nextEvent = 0;
+  try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+  speaking = false;
+  try {
+    for (let k in noiseFiles) if (noiseStarted[k]) noiseFiles[k].setVolume(0, 0.15);
+    for (let k in musicFiles) musicFiles[k].setVolume(0, 0.15);
+    if (ringOsc) ringOsc.amp(0, 0.05);
+  } catch (e) {}
+}
 function updateSound() {
   if (!soundStarted || !ringOsc) return;
   if (speaking && millis() > speakingUntil && !speechSynthesis.speaking) speaking = false;
@@ -1100,7 +1111,7 @@ function handleRemote(c) {
   if (c.set) { for (let k in c.set) { if (k == "age") { ageChoice = int(c.set.age); fitNoiseToAge(); } else if (k == "noise") { test.noise = c.set.noise; test.noiseChosen = true; } else if (k == "mode") { if (test.mode != c.set.mode) { test.mode = c.set.mode; if (state != "age") { restart(); if (ageChoice >= 0) { answers = {}; startTest(); } } } } else if (k in test) test[k] = c.set[k]; } }
   if (c.start) { panelOpen = false; restart(); if (c.start == "now" && ageChoice >= 0) { answers = {}; startTest(); } }
   if (c.situation) showSituation(String(c.situation).slice(0, 80));
-  if (c.answer && waitStart && !answeredAt) waitStart = millis() - waitTotalMs();
+  if (c.answer && waitStart && !answeredAt) { waitStart = millis() - waitTotalMs(); lastTick = 0; tick(); }
   if (c.skip && waitStart) waitStart -= c.skip * 1000;
   if (typeof c.night == "boolean") night = c.night;
   if (typeof c.voice == "boolean") voiceOn = c.voice;
