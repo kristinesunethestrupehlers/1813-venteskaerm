@@ -143,13 +143,12 @@ function readInsets() {
 function enter(s) { state = s; stateSince = millis(); }
 function since() { return millis() - stateSince; }
 
-function draw() {
-  // every frame starts from a clean, opaque canvas and a known fill state (Safari kept old frames when fill was off)
-  drawingContext.globalAlpha = 1;
-  fill(0); noStroke();
-  buttons = [];
-  let breath = (sin(frameCount * 0.013) + 1) / 2;
-
+// Everything that must keep running while the tab is hidden (a browser stops draw() in a background tab, and the test
+// leader's page is often the front tab on the same computer) lives in tick(), driven by draw() AND by a timer.
+let lastTick = 0;
+function tick() {
+  if (millis() - lastTick < 100) return;
+  lastTick = millis();
   // the queue ends: the nurse answers
   if (waitStart && !answeredAt && waitRemaining() <= 0 && ["home","flow","confirm","sent","wait","calm","advice","red","call"].includes(state)) {
     answeredAt = millis(); situation = null; enter("answered"); stopAmbience(); say("Sygeplejersken tager telefonen nu.", true);
@@ -158,11 +157,25 @@ function draw() {
   if (state == "call" && !answeredAt && millis() - callMsgAt > 30000) { callMsgAt = millis(); say("Velkommen til Akuttelefonen 1813. Du er nummer " + queueNumber() + " i køen. Ved livstruende sygdom eller tilskadekomst: læg på, og ring et, et, to.", true); }
   // sudden sounds, when the test leader wants them
   if (test.events && ambienceOn && !answeredAt && soundStarted) { if (!nextEvent) nextEvent = millis() + random(15000, 30000); else if (millis() > nextEvent) { playEvent(random(["phone", "doorbell", "horn"])); eventsPlayed++; nextEvent = millis() + random(20000, 40000); } }
-  publishState();
   // the voice follows the queue
   if (waitStart && !answeredAt && voiceOn && !["flow","confirm","sms","intro","survey"].includes(state) && queueNumber() != lastSpokenNumber) {
     lastSpokenNumber = queueNumber(); say(queueSentence());
   }
+  // the loading screen and the "sent" screen move on even if the tab is hidden
+  if (state == "intro" && since() > 7000) { enter("home"); waitStart = millis(); test.startedAt = millis(); lastSpokenNumber = 0; startAmbience(); }
+  if (state == "sent" && since() > 2200) enter("home");
+  publishState();
+  updateSound();
+}
+setInterval(() => { try { tick(); } catch (e) {} }, 500);
+
+function draw() {
+  // every frame starts from a clean, opaque canvas and a known fill state (Safari kept old frames when fill was off)
+  drawingContext.globalAlpha = 1;
+  fill(0); noStroke();
+  buttons = [];
+  let breath = (sin(frameCount * 0.013) + 1) / 2;
+  tick();
 
   if (state == "age")           drawAge();
   else if (state == "sms")      drawSms();
@@ -182,7 +195,6 @@ function draw() {
 
   if (situation && !answeredAt) drawSituation();
   if (panelOpen) drawPanel();
-  updateSound(breath);
 }
 
 // ============================================================ screens
@@ -233,7 +245,6 @@ function drawIntro() {
   let walk = constrain((t - 3000) / 3400, 0, 1);
   let fade = constrain((t - 6400) / 800, 0, 1);
   if (rise > 0) { push(); translate(0, (1 - rise) * height); drawLandscape(insetTop + 150, height - insetBottom - 120, walk, 1 - fade, true); pop(); }
-  if (t > 7000) { enter("home"); waitStart = millis(); test.startedAt = millis(); lastSpokenNumber = 0; startAmbience(); }
 }
 
 function drawHome() {
@@ -300,7 +311,6 @@ function drawSent() {
   line(width/2 - 14, insetTop + 222, width/2 - 4, insetTop + 232); line(width/2 - 4, insetTop + 232, width/2 + 16, insetTop + 208);
   noStroke(); fill(c.ink); textSize(24); textStyle(BOLD); text("Sendt", width/2, insetTop + 290);
   textStyle(NORMAL); fill(c.soft); textSize(15); text("Sygeplejersken har dine svar.", width/2, insetTop + 320);
-  if (since() > 2200) enter("home");
 }
 
 function drawRed() {
@@ -989,7 +999,7 @@ function startAmbience() {
   ambienceOn = true;
 }
 function stopAmbience() { ambienceOn = false; }
-function updateSound(breath) {
+function updateSound() {
   if (!soundStarted || !ringOsc) return;
   if (speaking && millis() > speakingUntil && !speechSynthesis.speaking) speaking = false;
   duck = lerp(duck, speaking ? 0.15 : 1, 0.05);
