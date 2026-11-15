@@ -37,7 +37,7 @@ function fitNoiseToAge() { if (!test.noiseChosen) test.noise = noiseSet()[1][0];
 const ALL_NOISES = [["ingen", "ingen"], ["baby", "babygråd"], ["børn", "børn der larmer"], ["trafik", "trafik"], ["storm", "storm"], ["snak", "folk der snakker"], ["blandet", "blandet"], ["skiftende", "skiftende"]];
 // the level of every file right now, for the chosen noise
 function noiseTargets() {
-  let e = test.escalate ? 0.55 + 0.45 * progress() : 1;              // optional, mild: from about half to full over the wait
+  let e = (test.escalate ? 0.55 + 0.45 * progress() : 1) * 0.72;     // noise ceiling 0.72, so the call itself (voice, music) can be heard above it
   if (test.noise == "blandet") return { trafik: 0.85 * e, snak: 0.85 * e };
   if (test.noise == "skiftende") { let k = ["trafik", "snak", "storm"][floor(millis() / 20000) % 3]; return { [k]: e }; }
   return { [test.noise]: e };
@@ -1026,10 +1026,10 @@ function updateSound() {
   if (speaking && millis() > speakingUntil && !speechSynthesis.speaking) speaking = false;
   duck = lerp(duck, speaking ? 0.15 : 1, 0.05);
   let inCall = waitStart && !answeredAt && state != "sms" && state != "intro" && state != "call";
-  let musicLevel = (inCall && musicOn) ? (state == "calm" ? 0.5 : state == "wait" ? 0.45 : 0.3) * duck : 0;
+  let musicLevel = (inCall && musicOn) ? (state == "calm" ? 0.7 : state == "wait" ? 0.65 : 0.55) * duck : 0;
   musicFiles.piano.setVolume(state == "calm" ? 0 : musicLevel, 0.2);
   musicFiles.mindfulness.setVolume(state == "calm" ? musicLevel : 0, 0.2);
-  musicFiles.hold.setVolume(state == "call" && !answeredAt ? 0.7 * duck : 0, 0.2);    // generic hold music, as 1813 has today; loud enough to be heard under the noise
+  musicFiles.hold.setVolume(state == "call" && !answeredAt ? 0.95 * duck : 0, 0.2);    // generic hold music, as 1813 has today; loud enough to be heard under the noise
   let ring = (inCall && !musicOn) ? ((millis() % 5000) < 1000 ? 0.08 : 0) : 0;
   ringOsc.amp(ring * duck, 0.05);
   let targets = noiseTargets();
