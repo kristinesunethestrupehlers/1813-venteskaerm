@@ -56,6 +56,10 @@
   <div class="row" id="noises"></div>
   <div class="hint">Alderen vælger kun standarden. Du kan altid vælge en anden.</div>
   <div class="row" style="margin-top:10px; align-items:center">
+    <span style="font-size:14px; width:130px">Støjens styrke</span>
+    <span id="levels" class="row"></span>
+  </div>
+  <div class="row" style="margin-top:8px; align-items:center">
     <span style="font-size:14px; width:130px">Pludselige lyde</span>
     <button id="events0" onclick="set('events', false)">fra</button><button id="events1" onclick="set('events', true)">til</button>
   </div>
@@ -185,6 +189,7 @@ function render() {
   document.getElementById("voice0").className = st.voiceOn ? "" : "on"; document.getElementById("voice1").className = st.voiceOn ? "on" : "";
   document.getElementById("music0").className = st.musicOn === false ? "on" : ""; document.getElementById("music1").className = st.musicOn === false ? "" : "on";
   fill("noises", ALL_NOISES.map(n => btn(n[1], t.noise == n[0], () => set("noise", n[0]))));
+  fill("levels", [[0.4,"lav"],[0.6,"mellem"],[0.8,"høj"]].map(L => btn(L[1], Math.abs((t.level ?? 0.6) - L[0]) < 0.01, () => set("level", L[0]))));
   document.getElementById("events0").className = t.events ? "" : "on"; document.getElementById("events1").className = t.events ? "on" : "";
   document.getElementById("escalate0").className = t.escalate ? "" : "on"; document.getElementById("escalate1").className = t.escalate ? "on" : "";
   fill("waits", [2,3,4,5,6].map(m => btn(m + " min", t.waitMin == m, () => set("waitMin", m))));

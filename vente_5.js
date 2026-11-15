@@ -37,12 +37,13 @@ function fitNoiseToAge() { if (!test.noiseChosen) test.noise = noiseSet()[1][0];
 const ALL_NOISES = [["ingen", "ingen"], ["baby", "babygråd"], ["børn", "børn der larmer"], ["trafik", "trafik"], ["storm", "storm"], ["snak", "folk der snakker"], ["blandet", "blandet"], ["skiftende", "skiftende"]];
 // the level of every file right now, for the chosen noise
 function noiseTargets() {
-  let e = (test.escalate ? 0.55 + 0.45 * progress() : 1) * 0.72;     // noise ceiling 0.72, so the call itself (voice, music) can be heard above it
+  let e = (test.escalate ? 0.55 + 0.45 * progress() : 1) * (test.level || 0.6);
   if (test.noise == "blandet") return { trafik: 0.85 * e, snak: 0.85 * e };
   if (test.noise == "skiftende") { let k = ["trafik", "snak", "storm"][floor(millis() / 20000) % 3]; return { [k]: e }; }
   return { [test.noise]: e };
 }
-let test = { noise: "ingen", noiseChosen: false, waitMin: 3, status: "stones", startedAt: 0, mode: "app", events: false, escalate: false };
+let test = { noise: "ingen", noiseChosen: false, waitMin: 3, status: "stones", startedAt: 0, mode: "app", events: false, escalate: false, level: 0.6 };
+const LEVELS = [[0.4, "lav"], [0.6, "mellem"], [0.8, "høj"]];   // the noise ceiling, so the test leader can balance noise against the call on the day
 // mode: "app" = the venteunivers, "1813" = the control condition (today's 1813: hold music and the looped message, nothing else)
 // events: sudden sounds now and then · escalate: the noise grows over the wait · noiseChosen: the test leader picked it herself
 const SITUATIONS = { infant: ["Barnet er blevet slapt og svært at få kontakt til", "Barnet kaster nu op"], child: ["Barnet kaster nu op", "Feberen er steget til 40"], adult: ["Smerterne er blevet værre", "Du er begyndt at kaste op"] };
@@ -101,7 +102,7 @@ function adviceCards() {
 }
 
 // ------------------------------------------------------------ sound
-const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-mindfulness.mp3", hold: "lyd/hold-1813-vivaldi.mp3?v=2" };   // hold = today's 1813: Vivaldi through a telephone filter (1813 plays music in the queue; the tune is unknown)
+const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-mindfulness.mp3", hold: "lyd/hold-1813-vivaldi.mp3?v=3" };   // hold = today's 1813: Vivaldi through a telephone filter (1813 plays music in the queue; the tune is unknown)
 let musicFiles = {}, noiseFiles = {};
 let musicOn = true, voiceOn = false, soundStarted = false, soundError = "";
 let ringOsc;
@@ -841,7 +842,9 @@ function drawPanel() {
   [2,3,4,5,6].forEach((m,i) => panelChoice(x + 12 + i * ((w-24)/5), yy, (w-24)/5 - 4, 26, m + " min", "p:wait:" + m, test.waitMin == m, 11));
   yy += 34; text("Version", width/2, yy); yy += 14;
   [["app", "Venteunivers"], ["1813", "1813 i dag (kontrol)"]].forEach((m, i) => panelChoice(x + 12 + i * ((w-24)/2), yy, (w-24)/2 - 4, 26, m[1], "p:mode:" + m[0], test.mode == m[0], 11));
-  yy += 34; textAlign(LEFT, CENTER); text("Pludselige lyde", x + 16, yy + 13); textAlign(CENTER, CENTER);
+  yy += 34; textAlign(LEFT, CENTER); text("Støjens styrke", x + 16, yy + 13); textAlign(CENTER, CENTER);
+  LEVELS.forEach((L, i) => panelChoice(x + w - 12 - 172 + i * 58, yy, 54, 26, L[1], "p:level:" + L[0], abs((test.level || 0.6) - L[0]) < 0.01, 11));
+  yy += 30; textAlign(LEFT, CENTER); text("Pludselige lyde", x + 16, yy + 13); textAlign(CENTER, CENTER);
   panelChoice(x + w - 12 - 112, yy, 52, 26, "fra", "p:events:0", !test.events, 11); panelChoice(x + w - 12 - 54, yy, 52, 26, "til", "p:events:1", test.events, 11);
   yy += 30; textAlign(LEFT, CENTER); text("Optrapning af støjen", x + 16, yy + 13); textAlign(CENTER, CENTER);
   panelChoice(x + w - 12 - 112, yy, 52, 26, "fra", "p:escalate:0", !test.escalate, 11); panelChoice(x + w - 12 - 54, yy, 52, 26, "til", "p:escalate:1", test.escalate, 11);
@@ -962,6 +965,7 @@ function handlePanel(v) {
   if (v.startsWith("status:")) test.status = v.slice(7);
   if (v.startsWith("mode:")) { test.mode = v.slice(5); panelOpen = false; if (state != "age") { restart(); if (ageChoice >= 0) { answers = {}; startTest(); } } }
   if (v.startsWith("events:")) test.events = v.endsWith("1");
+  if (v.startsWith("level:")) test.level = parseFloat(v.slice(6));
   if (v.startsWith("escalate:")) test.escalate = v.endsWith("1");
   if (v.startsWith("sit:")) { panelOpen = false; showSituation(situationsForAge()[int(v.slice(4))]); }
   if (v == "csv") { try { navigator.clipboard.writeText(resultsCsv()); } catch (e) {} }
@@ -1026,10 +1030,10 @@ function updateSound() {
   if (speaking && millis() > speakingUntil && !speechSynthesis.speaking) speaking = false;
   duck = lerp(duck, speaking ? 0.15 : 1, 0.05);
   let inCall = waitStart && !answeredAt && state != "sms" && state != "intro" && state != "call";
-  let musicLevel = (inCall && musicOn) ? (state == "calm" ? 0.7 : state == "wait" ? 0.65 : 0.55) * duck : 0;
+  let musicLevel = (inCall && musicOn) ? (state == "calm" ? 0.8 : state == "wait" ? 0.75 : 0.65) * duck : 0;
   musicFiles.piano.setVolume(state == "calm" ? 0 : musicLevel, 0.2);
   musicFiles.mindfulness.setVolume(state == "calm" ? musicLevel : 0, 0.2);
-  musicFiles.hold.setVolume(state == "call" && !answeredAt ? 0.95 * duck : 0, 0.2);    // generic hold music, as 1813 has today; loud enough to be heard under the noise
+  musicFiles.hold.setVolume(state == "call" && !answeredAt ? 1.0 * duck : 0, 0.2);    // generic hold music, as 1813 has today; loud enough to be heard under the noise
   let ring = (inCall && !musicOn) ? ((millis() % 5000) < 1000 ? 0.08 : 0) : 0;
   ringOsc.amp(ring * duck, 0.05);
   let targets = noiseTargets();
