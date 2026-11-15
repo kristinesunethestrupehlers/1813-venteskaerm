@@ -53,9 +53,14 @@
 <div class="box">
   <h2>Støj i høretelefonerne</h2>
   <div class="row" id="noises"></div>
-  <div class="row" style="margin-top:8px">
-    <button id="events" onclick="toggle('events')">pludselige lyde: fra</button>
-    <button id="escalate" onclick="toggle('escalate')">optrapning: fra</button>
+  <div class="hint">Alderen vælger kun standarden. Du kan altid vælge en anden.</div>
+  <div class="row" style="margin-top:10px; align-items:center">
+    <span style="font-size:14px; width:130px">Pludselige lyde</span>
+    <button id="events0" onclick="set('events', false)">fra</button><button id="events1" onclick="set('events', true)">til</button>
+  </div>
+  <div class="row" style="margin-top:8px; align-items:center">
+    <span style="font-size:14px; width:130px">Optrapning</span>
+    <button id="escalate0" onclick="set('escalate', false)">fra</button><button id="escalate1" onclick="set('escalate', true)">til</button>
   </div>
   <div class="row" style="margin-top:8px">
     <button class="ghost" onclick="send({event:'phone'})">telefon ringer nu</button>
@@ -110,22 +115,28 @@
 
 <script>
 const AGES = [["0 til 3 måneder","infant"],["4 måneder til 12 år","child"],["13 år og op","adult"]];
-const NOISE_SETS = { infant:[["ingen","ingen"],["baby","babygråd"]], child:[["ingen","ingen"],["baby","babygråd"],["børn","børn der larmer"]], adult:[["ingen","ingen"],["trafik","trafik"],["storm","storm"],["snak","folk der snakker"],["blandet","blandet"],["skiftende","skiftende"]] };
+const ALL_NOISES = [["ingen","ingen"],["baby","babygråd"],["børn","børn der larmer"],["trafik","trafik"],["storm","storm"],["snak","folk der snakker"],["blandet","blandet"],["skiftende","skiftende"]];
 const SITUATIONS = { infant:["Barnet er blevet slapt og svært at få kontakt til","Barnet kaster nu op"], child:["Barnet kaster nu op","Feberen er steget til 40"], adult:["Smerterne er blevet værre","Du er begyndt at kaste op"] };
 let room = (new URLSearchParams(location.search).get("rum") || localStorage.getItem("vu-room") || "gruppe10").toLowerCase();
 document.getElementById("room").textContent = room;
 let st = { age: -1, test: { noise:"ingen", waitMin:3, status:"stones", mode:"app", events:false, escalate:false } };
-let client = mqtt.connect("wss://broker.emqx.io:8084/mqtt", { clientId: "vu-remote-" + Math.random().toString(16).slice(2,10), keepalive: 30, reconnectPeriod: 4000 });
-client.on("connect", () => { setConn(true); client.subscribe("venteunivers/" + room + "/state"); client.subscribe("venteunivers/" + room + "/results"); });
-client.on("close", () => setConn(false));
-client.on("message", (t, m) => {
-  if (t.endsWith("/results")) { document.getElementById("csv").value = m.toString(); return; }
-  try { st = JSON.parse(m.toString()); render(); } catch (e) {}
-});
-function setConn(ok) { document.getElementById("conn").className = "dot" + (ok ? " ok" : ""); document.getElementById("conntext").textContent = ok ? "forbundet" : "ikke forbundet"; }
-function send(cmd) { client.publish("venteunivers/" + room + "/cmd", JSON.stringify(cmd)); }
+// two public brokers at once (some networks block one of the ports); the app ignores the duplicate
+const BROKERS = [["emqx", "wss://broker.emqx.io:8084/mqtt"], ["hivemq", "wss://broker.hivemq.com:8884/mqtt"]];
+let clients = [], connected = {};
+for (let [name, url] of BROKERS) {
+  let c = mqtt.connect(url, { clientId: "vu-remote-" + name + "-" + Math.random().toString(16).slice(2,10), keepalive: 30, reconnectPeriod: 5000, connectTimeout: 8000 });
+  c.on("connect", () => { connected[name] = true; setConn(); c.subscribe("venteunivers/" + room + "/state"); c.subscribe("venteunivers/" + room + "/results"); });
+  c.on("close", () => { connected[name] = false; setConn(); });
+  c.on("error", () => {});
+  c.on("message", (t, m) => {
+    if (t.endsWith("/results")) { document.getElementById("csv").value = m.toString(); return; }
+    try { let n = JSON.parse(m.toString()); if (!st.t || n.t >= st.t) { st = n; render(); } } catch (e) {}
+  });
+  clients.push(c);
+}
+function setConn() { let on = BROKERS.filter(b => connected[b[0]]).map(b => b[0]); document.getElementById("conn").className = "dot" + (on.length ? " ok" : ""); document.getElementById("conntext").textContent = on.length ? "forbundet (" + on.join(", ") + ")" : "ikke forbundet"; }
+function send(cmd) { cmd.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); let p = JSON.stringify(cmd); for (let c of clients) { try { if (c.connected) c.publish("venteunivers/" + room + "/cmd", p); } catch (e) {} } }
 function set(k, v) { send({ set: { [k]: v } }); st.test[k] = v; if (k == "age") st.age = v; render(); }
-function toggle(k) { set(k, !st.test[k]); }
 function sendCustom() { let t = document.getElementById("custom").value.trim(); if (t) send({ situation: t }); }
 function copyCsv() { navigator.clipboard.writeText(document.getElementById("csv").value); }
 function changeRoom() { let r = prompt("Rumkode (samme som ?rum= på appens link):", room); if (r) { localStorage.setItem("vu-room", r.toLowerCase()); location.search = "?rum=" + encodeURIComponent(r.toLowerCase()); } }
@@ -134,19 +145,19 @@ function fill(id, items) { let el = document.getElementById(id); el.innerHTML = 
 const STATE_DA = { age:"vælger alder", sms:"sms", intro:"indledning", home:"forside", flow:"spørgsmål", confirm:"bekræft", sent:"sendt", red:"112-skærm", wait:"Din ventetid", calm:"Find ro", advice:"Gode råd", answered:"sygeplejersken svarede", survey:"tre spørgsmål", done:"færdig", call:"1813 i dag (opkald)" };
 function render() {
   let t = st.test || {}, group = st.age >= 0 ? AGES[st.age][1] : "adult";
+  let appSeen = st.t ? (Date.now() - st.t < 8000 ? "appen svarer" : "appen har ikke svaret i " + Math.round((Date.now()-st.t)/1000) + " s") : "ingen kontakt med appen endnu";
   document.getElementById("liveNr").textContent = st.running ? ("Nr. " + st.nr + " · " + Math.floor(st.left/60) + ":" + String(st.left%60).padStart(2,"0") + " tilbage") : (STATE_DA[st.state] || st.state || "–");
-  let age = (st.t && Date.now() - st.t > 8000) ? " (sidst set for " + Math.round((Date.now()-st.t)/1000) + " s siden)" : "";
-  document.getElementById("status").innerHTML = `<div><b>Skærm:</b> ${STATE_DA[st.state] || st.state || "–"}${age}</div><div><b>Person:</b> ${st.person || "–"}</div><div><b>Version:</b> ${t.mode == "1813" ? "1813 i dag" : "venteunivers"}</div><div><b>Støj:</b> ${t.noise || "–"}${t.events ? " + lyde" : ""}${t.escalate ? " + optrapning" : ""}</div><div><b>Ventetid:</b> ${t.waitMin} min</div><div><b>Lyd startet:</b> ${st.sound ? "ja" : "nej (deltageren skal trykke først)"}</div><div><b>Situation:</b> ${st.situation ? "vises nu" : (st.choice || "–")}</div><div><b>Resultater:</b> ${st.results ?? "–"}</div>`;
+  document.getElementById("status").innerHTML = `<div style="grid-column:1/3"><b>Forbindelse:</b> ${appSeen}</div><div><b>Skærm:</b> ${STATE_DA[st.state] || st.state || "–"}</div><div><b>Person:</b> ${st.person || "–"}</div><div><b>Version:</b> ${t.mode == "1813" ? "1813 i dag" : "venteunivers"}</div><div><b>Støj:</b> ${t.noise || "–"}${t.events ? " + lyde" : ""}${t.escalate ? " + optrapning" : ""}</div><div><b>Ventetid:</b> ${t.waitMin} min</div><div><b>Lyd startet:</b> ${st.sound ? "ja" : "nej (deltageren skal trykke først)"}</div><div><b>Situation:</b> ${st.situation ? "vises nu" : (st.choice || "–")}</div><div><b>Resultater:</b> ${st.results ?? "–"}</div>`;
   fill("ages", AGES.map((a, i) => btn(a[0], st.age == i, () => set("age", i))));
   fill("modes", [["app","Venteunivers"],["1813","1813 i dag (kontrol)"]].map(m => btn(m[1], t.mode == m[0], () => set("mode", m[0]))));
-  fill("noises", NOISE_SETS[group].map(n => btn(n[1], t.noise == n[0], () => set("noise", n[0]))));
-  document.getElementById("events").textContent = "pludselige lyde: " + (t.events ? "til" : "fra"); document.getElementById("events").className = t.events ? "on" : "";
-  document.getElementById("escalate").textContent = "optrapning: " + (t.escalate ? "til" : "fra"); document.getElementById("escalate").className = t.escalate ? "on" : "";
+  fill("noises", ALL_NOISES.map(n => btn(n[1], t.noise == n[0], () => set("noise", n[0]))));
+  document.getElementById("events0").className = t.events ? "" : "on"; document.getElementById("events1").className = t.events ? "on" : "";
+  document.getElementById("escalate0").className = t.escalate ? "" : "on"; document.getElementById("escalate1").className = t.escalate ? "on" : "";
   fill("waits", [2,3,4,5,6].map(m => btn(m + " min", t.waitMin == m, () => set("waitMin", m))));
   fill("statuses", [["stones","sten"],["bar","bar"],["figure","figur"]].map(s => btn(s[1], t.status == s[0], () => set("status", s[0]))));
   fill("sits", SITUATIONS[group].map(s => btn(s, false, () => send({ situation: s }), "red")));
 }
-render();
+render(); setInterval(render, 3000);
 </script>
 </body>
 </html>

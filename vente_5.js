@@ -33,7 +33,8 @@ const NOISE_SETS = {
 };
 function noiseSet() { return NOISE_SETS[ageChoice < 0 ? "adult" : AGES[ageChoice][1]]; }
 // when the age changes, a noise that does not fit the group becomes the group's nearest one (never silently "ingen")
-function fitNoiseToAge() { if (noiseSet().some(n => n[0] == test.noise) && !(test.noise == "ingen" && !test.noiseChosen)) return; test.noise = noiseSet()[1][0]; }
+function fitNoiseToAge() { if (!test.noiseChosen) test.noise = noiseSet()[1][0]; }   // the age sets the default; a choice by the test leader always stands
+const ALL_NOISES = [["ingen", "ingen"], ["baby", "babygråd"], ["børn", "børn der larmer"], ["trafik", "trafik"], ["storm", "storm"], ["snak", "folk der snakker"], ["blandet", "blandet"], ["skiftende", "skiftende"]];
 // the level of every file right now, for the chosen noise
 function noiseTargets() {
   let e = test.escalate ? 0.55 + 0.45 * progress() : 1;              // optional, mild: from about half to full over the wait
@@ -813,20 +814,21 @@ function drawPanel() {
   text("Alder (vælges på startskærmen)", width/2, yy); yy += 14;
   for (let i = 0; i < AGES.length; i++) panelChoice(x + 12 + i * ((w-24)/3), yy, (w-24)/3 - 4, 26, AGES[i][0], "p:age:" + i, ageChoice == i, 11);
   yy += 34;
-  text("Støj i høretelefonerne (følger alderen)", width/2, yy); yy += 14;
-  let ns = noiseSet(), per = ns.length > 3 ? 3 : ns.length;
-  for (let i = 0; i < ns.length; i++) panelChoice(x + 12 + (i % per) * ((w-24)/per), yy + floor(i/per) * 30, (w-24)/per - 4, 26, ns[i][1], "p:noise:" + ns[i][0], test.noise == ns[i][0], 11);
-  yy += ns.length > 3 ? 64 : 34; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
+  text("Støj i høretelefonerne (alderen vælger kun standarden)", width/2, yy); yy += 14;
+  for (let i = 0; i < ALL_NOISES.length; i++) panelChoice(x + 12 + (i % 4) * ((w-24)/4), yy + floor(i/4) * 30, (w-24)/4 - 4, 26, ALL_NOISES[i][1], "p:noise:" + ALL_NOISES[i][0], test.noise == ALL_NOISES[i][0], 10);
+  yy += 64; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
   [2,3,4,5,6].forEach((m,i) => panelChoice(x + 12 + i * ((w-24)/5), yy, (w-24)/5 - 4, 26, m + " min", "p:wait:" + m, test.waitMin == m, 11));
   yy += 34; text("Version", width/2, yy); yy += 14;
   [["app", "Venteunivers"], ["1813", "1813 i dag (kontrol)"]].forEach((m, i) => panelChoice(x + 12 + i * ((w-24)/2), yy, (w-24)/2 - 4, 26, m[1], "p:mode:" + m[0], test.mode == m[0], 11));
-  yy += 34; text("Pludselige lyde · optrapning · ny situation", width/2, yy); yy += 14;
-  panelChoice(x + 12, yy, (w-24)/4 - 4, 26, test.events ? "lyde: til" : "lyde: fra", "p:events", test.events, 11);
-  panelChoice(x + 12 + (w-24)/4, yy, (w-24)/4 - 4, 26, test.escalate ? "optrap: til" : "optrap: fra", "p:escalate", test.escalate, 11);
-  situationsForAge().forEach((t, i) => panelChoice(x + 12 + (2 + i) * ((w-24)/4), yy, (w-24)/4 - 4, 26, t.split(" ").slice(0, 3).join(" "), "p:sit:" + i, false, 10));
+  yy += 34; textAlign(LEFT, CENTER); text("Pludselige lyde", x + 16, yy + 13); textAlign(CENTER, CENTER);
+  panelChoice(x + w - 12 - 112, yy, 52, 26, "fra", "p:events:0", !test.events, 11); panelChoice(x + w - 12 - 54, yy, 52, 26, "til", "p:events:1", test.events, 11);
+  yy += 30; textAlign(LEFT, CENTER); text("Optrapning af støjen", x + 16, yy + 13); textAlign(CENTER, CENTER);
+  panelChoice(x + w - 12 - 112, yy, 52, 26, "fra", "p:escalate:0", !test.escalate, 11); panelChoice(x + w - 12 - 54, yy, 52, 26, "til", "p:escalate:1", test.escalate, 11);
+  yy += 34; text("Ny situation (pop op hos deltageren)", width/2, yy); yy += 14;
+  situationsForAge().forEach((t, i) => panelChoice(x + 12 + i * ((w-24)/2), yy, (w-24)/2 - 4, 26, t, "p:sit:" + i, false, 10));
   yy += 34; text("Køstatus i fanerne", width/2, yy); yy += 14;
   [["stones","Sten"],["bar","Bar"],["figure","Figur"]].forEach((s,i) => panelChoice(x + 12 + i * ((w-24)/3), yy, (w-24)/3 - 4, 26, s[1], "p:status:" + s[0], test.status == s[0], 11));
-  yy += 36;
+  yy += 34;
   let res = loadResults();
   fill("#5E7A68"); textSize(12); text("Resultater: " + res.length + (res.length ? "  ·  seneste: gæt " + res[res.length-1].estimateMin + " min, reelt " + res[res.length-1].waitMin + " min, ro " + res[res.length-1].calm + ", uro " + res[res.length-1].energy : ""), width/2, yy);
   yy += 20;
@@ -842,7 +844,7 @@ function drawPanel() {
   let ctx = typeof getAudioContext == "function" ? getAudioContext() : null;
   let loaded = Object.keys(noiseFiles).map(k => k + (noiseFiles[k].isLoaded() ? (noiseStarted[k] ? "▶" : "✓") : "✗") + (noiseStarted[k] ? nf(noiseFiles[k].output.gain.value, 1, 1) : "")).join(" ");
   text("Lyd: " + (soundStarted ? "startet" : "ikke startet") + " · kontekst: " + (ctx ? ctx.state : "?") + " · valg: " + test.noise + (ambienceOn ? " (til)" : " (fra)") + " · " + loaded + (soundError ? " · fejl: " + soundError : ""), x + 12, yy - 8, w - 24, 44);
-  fill("#5E7A68"); textSize(10); text("Fjernstyring: rum \"" + ROOM + "\" · " + (remote.connected ? "forbundet" : "ikke forbundet") + " · åbn testleder.html på en anden telefon", width/2, y + h - 30);
+  fill("#5E7A68"); textSize(10); text("Fjernstyring: rum \"" + ROOM + "\" · " + remoteStatus() + " · åbn testleder.html på en anden telefon", width/2, y + h - 30);
   textSize(11); text("Luk: tryk uden for boksen", width/2, y + h - 14);
   buttons.push({ x, y, w, h, value: "p:none" });
   buttons.push({ x: 0, y: 0, w: width, h: height, value: "p:close" });
@@ -933,8 +935,8 @@ function handlePanel(v) {
   if (v.startsWith("wait:")) test.waitMin = int(v.slice(5));
   if (v.startsWith("status:")) test.status = v.slice(7);
   if (v.startsWith("mode:")) test.mode = v.slice(5);
-  if (v == "events") test.events = !test.events;
-  if (v == "escalate") test.escalate = !test.escalate;
+  if (v.startsWith("events:")) test.events = v.endsWith("1");
+  if (v.startsWith("escalate:")) test.escalate = v.endsWith("1");
   if (v.startsWith("sit:")) { panelOpen = false; showSituation(situationsForAge()[int(v.slice(4))]); }
   if (v == "csv") { try { navigator.clipboard.writeText(resultsCsv()); } catch (e) {} }
   if (v == "clear") { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
@@ -1032,22 +1034,30 @@ function playEvent(kind) {
 
 // ============================================================ remote control from a second phone (MQTT over WebSocket, public broker)
 const ROOM = ((new URLSearchParams(location.search).get("rum")) || "gruppe10").toLowerCase().replace(/[^a-z0-9æøå-]/g, "");
-let remote = { client: null, connected: false, lastState: 0 };
+// two public brokers at the same time, so a network that blocks one port still gets through; duplicates are ignored
+const BROKERS = [["emqx", "wss://broker.emqx.io:8084/mqtt"], ["hivemq", "wss://broker.hivemq.com:8884/mqtt"]];
+let remote = { clients: [], connected: {}, lastState: 0, seen: [] };
+Object.defineProperty(remote, "connected_any", { get() { return Object.values(remote.connected).some(v => v); } });
 function connectRemote() {
   if (typeof mqtt == "undefined") return;
-  try {
-    remote.client = mqtt.connect("wss://broker.emqx.io:8084/mqtt", { clientId: "vu-app-" + Math.random().toString(16).slice(2, 10), keepalive: 30, reconnectPeriod: 4000, clean: true });
-    remote.client.on("connect", () => { remote.connected = true; remote.client.subscribe("venteunivers/" + ROOM + "/cmd"); });
-    remote.client.on("close", () => { remote.connected = false; });
-    remote.client.on("error", () => {});
-    remote.client.on("message", (t, m) => { try { handleRemote(JSON.parse(m.toString())); } catch (e) {} });
-  } catch (e) {}
+  for (let [name, url] of BROKERS) {
+    try {
+      let cl = mqtt.connect(url, { clientId: "vu-app-" + name + "-" + Math.random().toString(16).slice(2, 10), keepalive: 30, reconnectPeriod: 5000, clean: true, connectTimeout: 8000 });
+      cl.on("connect", () => { remote.connected[name] = true; cl.subscribe("venteunivers/" + ROOM + "/cmd"); });
+      cl.on("close", () => { remote.connected[name] = false; });
+      cl.on("error", () => {});
+      cl.on("message", (t, m) => { try { let c = JSON.parse(m.toString()); if (c.id) { if (remote.seen.includes(c.id)) return; remote.seen.push(c.id); if (remote.seen.length > 60) remote.seen.shift(); } handleRemote(c); } catch (e) {} });
+      remote.clients.push(cl);
+    } catch (e) {}
+  }
 }
+function remotePublish(topic, payload, opts) { for (let cl of remote.clients) { try { if (cl.connected) cl.publish("venteunivers/" + ROOM + "/" + topic, payload, opts || {}); } catch (e) {} } }
+function remoteStatus() { let on = BROKERS.filter(b => remote.connected[b[0]]).map(b => b[0]); return on.length ? "forbundet (" + on.join(", ") + ")" : "ikke forbundet"; }
 function publishState() {
-  if (!remote.connected || millis() - remote.lastState < 1500) return;
+  if (!remote.connected_any || millis() - remote.lastState < 1500) return;
   remote.lastState = millis();
   let st = { state, person: personLine(), age: ageChoice, nr: queueNumber(), min: minutesLeft(), left: round(waitRemaining() / 1000), running: !!(waitStart && !answeredAt), test, night, voiceOn, musicOn, flowDone, results: loadResults().length, situation: situation ? situation.text : "", choice: situationChoice, sound: soundStarted, t: Date.now() };
-  try { remote.client.publish("venteunivers/" + ROOM + "/state", JSON.stringify(st), { retain: true }); } catch (e) {}
+  remotePublish("state", JSON.stringify(st), { retain: true });
 }
 function handleRemote(c) {
   if (c.set) { for (let k in c.set) { if (k == "age") { ageChoice = int(c.set.age); fitNoiseToAge(); } else if (k == "noise") { test.noise = c.set.noise; test.noiseChosen = true; } else if (k in test) test[k] = c.set[k]; } }
@@ -1060,7 +1070,7 @@ function handleRemote(c) {
   if (typeof c.music == "boolean") musicOn = c.music;
   if (c.event) playEvent(c.event);
   if (c.clear) { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
-  if (c.csv) { try { remote.client.publish("venteunivers/" + ROOM + "/results", resultsCsv()); } catch (e) {} }
+  if (c.csv) remotePublish("results", resultsCsv());
 }
 
 // ============================================================ the sun over Copenhagen
