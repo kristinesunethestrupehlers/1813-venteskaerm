@@ -16,6 +16,6 @@ Tastatur på computer: n = nat/dag, v = stemme, m = musik, t = testlederpanel, m
 - Støj til testen fra Wikimedia Commons, klippet til 60 sekunder, normaliseret og gemt uden ID3-mærkat (iPhone afkoder ellers ikke filen). Valget følger alderen: 0 til 3 måneder = babygråd; 4 måneder til 12 år = babygråd eller børn der larmer; 13 år og op = trafik, storm, folk der snakker, blandet eller skiftende.
   - Babygråd: "Crying newborn baby", the_yura, CC0.
   - Børn der larmer: "Ambient sound children playing in a park 2026-05-19", Schlurcher, CC BY-SA 4.0.
-  - Trafik: "Sunday in the city street noise1", cori, public domain.
-  - Storm: "Summer thunderstorm in the woods", Serg Childed, CC BY-SA 4.0.
+  - Trafik (mix): "2023-Mai-20 14h38min Wien äußerer Lerchenfelder Gürtel Thaliagasse Sirene autos motorrad", DrTrumpet, CC BY-SA 4.0, og "Audio sound of a busy traffic in Porthacourt", ElemePodcast, CC BY 4.0.
+  - Storm (mix): "Summer thunderstorm in the woods", Serg Childed; "Mansoura city weather, Heavy rains and thunder", Aimty17; "Thunder.wav", Subhashish Panigrahi; "Thunder 01", Amuzujoe. Alle CC BY-SA 4.0.
   - Folk der snakker: "Restaurant ambience", stephan, public domain.

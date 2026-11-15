@@ -33,14 +33,14 @@ const NOISE_SETS = {
 };
 function noiseSet() { return NOISE_SETS[ageChoice < 0 ? "adult" : AGES[ageChoice][1]]; }
 // when the age changes, a noise that does not fit the group becomes the group's nearest one (never silently "ingen")
-function fitNoiseToAge() { if (test.noise == "ingen" || noiseSet().some(n => n[0] == test.noise)) return; test.noise = noiseSet()[1][0]; }
+function fitNoiseToAge() { if (noiseSet().some(n => n[0] == test.noise) && !(test.noise == "ingen" && !test.noiseChosen)) return; test.noise = noiseSet()[1][0]; }
 // the level of every file right now, for the chosen noise
 function noiseTargets() {
-  if (test.noise == "blandet") return { trafik: 0.6, snak: 0.7 };
-  if (test.noise == "skiftende") { let k = ["trafik", "snak", "storm"][floor(millis() / 20000) % 3]; return { [k]: 0.9 }; }
-  return { [test.noise]: 0.9 };
+  if (test.noise == "blandet") return { trafik: 0.85, snak: 0.85 };
+  if (test.noise == "skiftende") { let k = ["trafik", "snak", "storm"][floor(millis() / 20000) % 3]; return { [k]: 1 }; }
+  return { [test.noise]: 1 };
 }
-let test = { noise: "ingen", waitMin: 3, status: "stones", startedAt: 0 };
+let test = { noise: "ingen", noiseChosen: false, waitMin: 3, status: "stones", startedAt: 0 };   // noiseChosen: the test leader picked it herself ("ingen" then stays)
 let panelOpen = false;
 let titleTaps = [];
 
@@ -215,7 +215,7 @@ function drawIntro() {
   let walk = constrain((t - 3000) / 3400, 0, 1);
   let fade = constrain((t - 6400) / 800, 0, 1);
   if (rise > 0) { push(); translate(0, (1 - rise) * height); drawLandscape(insetTop + 150, height - insetBottom - 120, walk, 1 - fade, true); pop(); }
-  if (t > 7000) { enter("home"); waitStart = millis(); test.startedAt = millis(); lastSpokenNumber = 0; }
+  if (t > 7000) { enter("home"); waitStart = millis(); test.startedAt = millis(); lastSpokenNumber = 0; startAmbience(); }
 }
 
 function drawHome() {
@@ -553,17 +553,17 @@ function paintHill(g, top, a1, a2, bottom, c1, c2, haze, seed) {
   for (let [dy, al] of [[-12, 10], [-6, 16], [-2, 22]]) { g.fill(0, 20, 10, al); hillShape(g, a1, top, a2, bottom, dy); }
   gradFill(g, 0, top, 0, bottom, c1, c2); hillShape(g, a1, top, a2, bottom);
   randomSeed(seed);
-  for (let i = 0; i < 320; i++) {
+  for (let i = 0; i < 150; i++) {
     let t = random(), rx = bezierPoint(0, width*0.3, width*0.6, width, t), ry = bezierPoint(a1, top, a2 + 40, a2, t);
     let d = random(); let y = ry + d*d * (bottom - ry) + 6;
     let w = random(16, 70), h = w * random(0.22, 0.4);
-    if (random() < 0.5) g.fill(255, 255, 230, random(3, night ? 6 : 12)); else g.fill(0, 25, 10, random(3, 11));
+    if (random() < 0.5) g.fill(255, 255, 230, random(2, night ? 4 : 8)); else g.fill(0, 25, 10, random(2, 7));
     g.ellipse(rx + random(-40, 40), y, w, h);
   }
   // sunlit side: a soft light wash from the top right, a shade wash bottom left
   gradFill(g, width, top, 0, bottom, night ? "rgba(255,240,200,0.05)" : "rgba(255,245,200,0.16)", "rgba(0,20,10,0.10)"); hillShape(g, a1, top, a2, bottom);
   g.noFill();
-  for (let [sw, al] of [[16, 8], [8, 14], [3, 34]]) { g.stroke(255, 255, 235, night ? al * 0.35 : al); g.strokeWeight(sw); g.beginShape(); ridge(g, a1, top, a2); g.endShape(); }
+  for (let [sw, al] of [[10, 6], [3, 22]]) { g.stroke(255, 255, 235, night ? al * 0.35 : al); g.strokeWeight(sw); g.beginShape(); ridge(g, a1, top, a2); g.endShape(); }
   g.noStroke();
   if (haze > 0) { g.fill(red(c.skyBot), green(c.skyBot), blue(c.skyBot), haze); hillShape(g, a1, top, a2, bottom); }
 }
@@ -571,10 +571,9 @@ function hillLayers(top, bottom) {
   let c = col(), span = bottom - top;
   let far = c.far, mid = c.mid, near = c.near;
   return [
-    { top: top,               a1: top + 60,          a2: top + 36,          c1: far[0],  c2: far[1],  haze: night ? 28 : 44, seed: 11 },
-    { top: top + span*0.18,   a1: top + span*0.26,   a2: top + span*0.21,   c1: lerpColor(color(far[0]), color(mid[0]), 0.5).toString(), c2: lerpColor(color(far[1]), color(mid[1]), 0.5).toString(), haze: night ? 16 : 26, seed: 23 },
-    { top: top + span*0.36,   a1: top + span*0.46,   a2: top + span*0.42,   c1: mid[0],  c2: mid[1],  haze: night ? 6 : 12, seed: 37 },
-    { top: top + span*0.56,   a1: top + span*0.62,   a2: top + span*0.70,   c1: lerpColor(color(mid[0]), color(near[0]), 0.5).toString(), c2: lerpColor(color(mid[1]), color(near[1]), 0.5).toString(), haze: 0, seed: 41 },
+    { top: top,               a1: top + 60,          a2: top + 36,          c1: far[0],  c2: far[1],  haze: night ? 24 : 36, seed: 11 },
+    { top: top + span*0.26,   a1: top + span*0.36,   a2: top + span*0.31,   c1: mid[0],  c2: mid[1],  haze: night ? 6 : 12, seed: 37 },
+    { top: top + span*0.52,   a1: top + span*0.58,   a2: top + span*0.66,   c1: lerpColor(color(mid[0]), color(near[0]), 0.5).toString(), c2: lerpColor(color(mid[1]), color(near[1]), 0.5).toString(), haze: 0, seed: 41 },
     { top: top + span*0.76,   a1: top + span*0.86,   a2: top + span*0.81,   c1: near[0], c2: near[1], haze: 0, seed: 53 }
   ];
 }
@@ -815,7 +814,7 @@ function handle(v) {
     return;
   }
   if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); fitNoiseToAge(); answers = {}; enter("sms"); return; }
-  if (state == "sms" && v == "open-link") { enter("intro"); startAmbience(); return; }
+  if (state == "sms" && v == "open-link") { enter("intro"); return; }
   if (v == "home") { enter("home"); return; }
   if (v.startsWith("go:")) {
     let t = v.slice(3);
@@ -864,7 +863,7 @@ function handlePanel(v) {
   if (v == "close") { panelOpen = false; return; }
   if (v == "none") return;
   if (v.startsWith("age:")) { ageChoice = int(v.slice(4)); fitNoiseToAge(); }
-  if (v.startsWith("noise:")) test.noise = v.slice(6);
+  if (v.startsWith("noise:")) { test.noise = v.slice(6); test.noiseChosen = true; }
   if (v.startsWith("wait:")) test.waitMin = int(v.slice(5));
   if (v.startsWith("status:")) test.status = v.slice(7);
   if (v == "csv") { try { navigator.clipboard.writeText(resultsCsv()); } catch (e) {} }
