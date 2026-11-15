@@ -1035,8 +1035,8 @@ function playEvent(kind) {
 // ============================================================ remote control from a second phone (MQTT over WebSocket, public broker)
 const ROOM = ((new URLSearchParams(location.search).get("rum")) || "gruppe10").toLowerCase().replace(/[^a-z0-9æøå-]/g, "");
 // two public brokers at the same time, so a network that blocks one port still gets through; duplicates are ignored
-const BROKERS = [["emqx", "wss://broker.emqx.io:8084/mqtt"], ["hivemq", "wss://broker.hivemq.com:8884/mqtt"]];
-let remote = { clients: [], connected: {}, lastState: 0, seen: [] };
+const BROKERS = [["mosquitto", "wss://test.mosquitto.org:8081/mqtt"], ["emqx", "wss://broker.emqx.io:8084/mqtt"], ["hivemq", "wss://broker.hivemq.com:8884/mqtt"]];
+let remote = { clients: [], connected: {}, lastState: 0, seen: [], lastCmd: "", lastCmdAt: 0 };
 Object.defineProperty(remote, "connected_any", { get() { return Object.values(remote.connected).some(v => v); } });
 function connectRemote() {
   if (typeof mqtt == "undefined") return;
@@ -1046,7 +1046,7 @@ function connectRemote() {
       cl.on("connect", () => { remote.connected[name] = true; cl.subscribe("venteunivers/" + ROOM + "/cmd"); });
       cl.on("close", () => { remote.connected[name] = false; });
       cl.on("error", () => {});
-      cl.on("message", (t, m) => { try { let c = JSON.parse(m.toString()); if (c.id) { if (remote.seen.includes(c.id)) return; remote.seen.push(c.id); if (remote.seen.length > 60) remote.seen.shift(); } handleRemote(c); } catch (e) {} });
+      cl.on("message", (t, m) => { try { let c = JSON.parse(m.toString()); if (c.id) { if (remote.seen.includes(c.id)) return; remote.seen.push(c.id); if (remote.seen.length > 60) remote.seen.shift(); remote.lastCmd = c.id; remote.lastCmdAt = Date.now(); } handleRemote(c); remote.lastState = 0; } catch (e) {} });
       remote.clients.push(cl);
     } catch (e) {}
   }
@@ -1056,7 +1056,8 @@ function remoteStatus() { let on = BROKERS.filter(b => remote.connected[b[0]]).m
 function publishState() {
   if (!remote.connected_any || millis() - remote.lastState < 1500) return;
   remote.lastState = millis();
-  let st = { state, person: personLine(), age: ageChoice, nr: queueNumber(), min: minutesLeft(), left: round(waitRemaining() / 1000), running: !!(waitStart && !answeredAt), test, night, voiceOn, musicOn, flowDone, results: loadResults().length, situation: situation ? situation.text : "", choice: situationChoice, sound: soundStarted, t: Date.now() };
+  let gains = {}; for (let k in noiseFiles) gains[k] = noiseStarted[k] ? round(noiseFiles[k].output.gain.value * 10) / 10 : -1;
+  let st = { state, person: personLine(), age: ageChoice, nr: queueNumber(), min: minutesLeft(), left: round(waitRemaining() / 1000), running: !!(waitStart && !answeredAt), test, night, voiceOn, musicOn, flowDone, results: loadResults().length, situation: situation ? situation.text : "", choice: situationChoice, sound: soundStarted, ambience: ambienceOn, gains, lastCmd: remote.lastCmd, brokers: BROKERS.filter(b => remote.connected[b[0]]).map(b => b[0]), version: 14, t: Date.now() };
   remotePublish("state", JSON.stringify(st), { retain: true });
 }
 function handleRemote(c) {
