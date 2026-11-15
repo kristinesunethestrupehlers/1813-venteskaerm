@@ -11,20 +11,21 @@
 // Keyboard on a computer: n = night, v = voice, m = music, t = test leader panel, space = skip 30 s of waiting
 
 // ------------------------------------------------------------ state
-let state = "sms";              // sms, intro, home, flow, confirm, sent, red, wait, calm, advice, answered, survey, done
+let state = "age";              // age (the tester picks the age from the card), sms, intro, home, flow, confirm, sent, red, wait, calm, advice, answered, survey, done
 let night = false;
 let insetTop = 0, insetBottom = 0;
 let buttons = [], lastTap = 0;
 let stateSince = 0;             // millis() when the state was entered
 
 // ------------------------------------------------------------ test settings (the test leader can change them)
-const SCENARIOS = [
-  "Barn 2 år, feber 40", "Barn 5 år, opkast og diarré", "Barn 8 år, ondt i øret",
-  "Voksen, influenza", "Voksen, mavesmerter", "Voksen, slået hovedet", "Spædbarn 2 mdr, feber"
-];
+// the person the call is about: the name is fixed, the age comes from the card the tester drew
+const PERSON_NAME = "Alex";
+const AGES = [["2 måneder", "infant"], ["2 år", "child"], ["5 år", "child"], ["8 år", "child"], ["34 år", "adult"], ["67 år", "adult"]];
+let ageChoice = -1;
+function personLine() { return ageChoice < 0 ? "" : PERSON_NAME + ", " + AGES[ageChoice][0]; }
 const NOISES = ["ingen", "baby", "trafik", "storm", "børn"];
 const NOISE_FILES = { baby: "lyd/noise-baby.mp3", trafik: "lyd/noise-traffic.mp3", storm: "lyd/noise-storm.mp3", "børn": "lyd/noise-children.mp3" };
-let test = { scenario: 0, noise: "ingen", waitMin: 3, status: "stones", startedAt: 0 };
+let test = { noise: "ingen", waitMin: 3, status: "stones", startedAt: 0 };
 let panelOpen = false;
 let titleTaps = [];
 
@@ -41,19 +42,13 @@ function progress() { return waitStart ? 1 - waitRemaining() / waitTotalMs() : 0
 function queueSentence() { let n = queueNumber(); return n == 1 ? "Du er den næste." : "Du er nummer " + n + " i køen. Der er cirka " + minutesLeft() + " minutter til."; }
 
 // ------------------------------------------------------------ the questionnaire (one question at a time)
-let answers = {};               // who (infant/child/adult), theme, sub, q0..q2, temp, together
-let cpr = "";
+let answers = {};               // who (infant/child/adult, from the age chosen at the start), theme, sub, q0..q2, temp, together
 let qIndex = 0;
 let flowDone = false;
-const AGE_BUTTONS = [["0 til 3 måneder", "infant"], ["4 måneder til 12 år", "child"], ["13 år og op", "adult"]];
 
 function flowSteps() {
   let steps = [];
-  if (!answers.who) {
-    steps.push({ key: "cpr", type: "cpr" });
-    if (answers.cpr == "skip") steps.push({ key: "who", text: "Hvor gammel er den, det drejer sig om?", buttons: AGE_BUTTONS });
-    return steps;
-  }
+  if (!answers.who) answers.who = ageChoice < 0 ? "adult" : AGES[ageChoice][1];
   steps.push({ key: "temp",     text: "Har du målt temperaturen?",                buttons: [["Ja","yes"],["Nej","no"]] });
   steps.push({ key: "together", text: "Er du sammen med den, det drejer sig om?",  buttons: [["Ja","yes"],["Nej","no"]] });
   steps.push({ key: "theme",    text: "Hvad drejer det sig om?",                    buttons: THEMES[answers.who].map((th,i) => [th.da, String(i)]) });
@@ -71,20 +66,6 @@ function currentPage() {
   let th = THEMES[answers.who][int(answers.theme)]; let sub = th.sub[int(answers.sub || 0)];
   return sub[2] && PAGES[sub[2]] ? sub[2] : "general";
 }
-function ageGroupFromCpr(digits) {
-  if (digits.length < 6) return null;
-  let day = int(digits.slice(0, 2)), month = int(digits.slice(2, 4)), yy = int(digits.slice(4, 6));
-  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
-  let now = new Date();
-  let century = (yy <= now.getFullYear() % 100) ? 2000 : 1900;   // the six first digits decide (prototype; the 7th digit is ignored)
-  let birth = new Date(century + yy, month - 1, day);
-  let months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
-  if (now.getDate() < birth.getDate()) months -= 1;
-  if (months < 4) return "infant";
-  if (months < 13 * 12) return "child";
-  return "adult";
-}
-
 // ------------------------------------------------------------ advice deck
 let cardIndex = 0, cardShownAt = 0;
 const CARD_SECONDS = 25;
@@ -126,7 +107,7 @@ function setup() {
   readInsets();
   night = isNight();
   if (window.speechSynthesis) { voices = speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); }; }
-  enter("sms");
+  enter("age");
 }
 function readInsets() {
   let t = document.getElementById("inset-top"), b = document.getElementById("inset-bottom");
@@ -151,7 +132,8 @@ function draw() {
     lastSpokenNumber = queueNumber(); say(queueSentence());
   }
 
-  if (state == "sms")           drawSms();
+  if (state == "age")           drawAge();
+  else if (state == "sms")      drawSms();
   else if (state == "intro")    drawIntro();
   else if (state == "home")     drawHome();
   else if (state == "flow")     drawFlow();
@@ -170,6 +152,20 @@ function draw() {
 }
 
 // ============================================================ screens
+function drawAge() {
+  drawSky(); drawHills(height - insetBottom - 170, height);
+  let c = col();
+  noStroke(); fill(c.soft); textSize(12); text("SIMULERING", width/2, insetTop + 60);
+  fill(c.ink); textSize(24); textStyle(BOLD); textLeading(30);
+  text("Hvor gammel er den, du ringer om?", width*0.1, insetTop + 84, width*0.8, 80);
+  textStyle(NORMAL); fill(c.soft); textSize(13); text("Se på kortet, du har trukket", width/2, insetTop + 170);
+  let bw = min(width*0.4, 170), bh = 54, gap = 12;
+  for (let i = 0; i < AGES.length; i++) {
+    let cx = width/2 + (i % 2 == 0 ? -1 : 1) * (bw/2 + gap/2), cy = insetTop + 230 + floor(i/2) * (bh + gap);
+    choiceButton(cx, cy, bw, bh, AGES[i][0], "age:" + i, ageChoice == i, 17);
+  }
+  fill(c.soft); textSize(12); text(PERSON_NAME + " er navnet i simuleringen", width/2, insetTop + 230 + 3 * (bh + gap) + 6);
+}
 function drawSms() {
   background("#F2F2F7");
   noStroke();
@@ -206,7 +202,7 @@ function drawIntro() {
   let walk = constrain((t - 3000) / 3400, 0, 1);
   let fade = constrain((t - 6400) / 800, 0, 1);
   if (rise > 0) { push(); translate(0, (1 - rise) * height); drawLandscape(insetTop + 150, height - insetBottom - 120, walk, 1 - fade, true); pop(); }
-  if (t > 7000) { enter("home"); waitStart = millis(); test.startedAt = millis(); lastSpokenNumber = 0; startAmbience(); }
+  if (t > 7000) { enter("home"); waitStart = millis(); test.startedAt = millis(); lastSpokenNumber = 0; }
 }
 
 function drawHome() {
@@ -216,7 +212,8 @@ function drawHome() {
   let c = col();
   noStroke(); textSize(30); textStyle(BOLD);
   fill(c.cardsh); text("Velkommen til 1813", width/2 + 1, insetTop + 176);
-  fill(c.ink); text("Velkommen til 1813", width/2, insetTop + 174);
+  fill(c.ink); text("Velkommen til 1813", width/2, insetTop + 170);
+  textStyle(NORMAL); textSize(15); fill(c.soft); text(personLine(), width/2, insetTop + 198);
   let y = insetTop + 230, h = 70, gap = 12, bx = 24, bw = width - 48;
   if (width > 600) { bw = 520; bx = (width - bw) / 2; }
   menuBox(bx, y, bw, h, "Forbered din samtale", flowDone ? "Sendt til sygeplejersken" : "Start her", "check", "flow", !flowDone);
@@ -233,7 +230,6 @@ function drawFlow() {
   if (qIndex >= steps.length) { enter("confirm"); return; }
   let q = steps[qIndex];
   let c = col();
-  if (q.type == "cpr") { drawCprStep(); return; }
   noStroke(); fill(c.soft); textSize(12); text("SPØRGSMÅL " + (qIndex + 1), width/2, insetTop + 150);
   fill(c.ink); textSize(q.text.length < 34 ? 24 : 21); textLeading(30); textStyle(BOLD);
   text(q.text, width*0.1, insetTop + 170, width*0.8, 110);
@@ -250,32 +246,6 @@ function drawFlow() {
   }
 }
 
-function drawCprStep() {
-  let c = col();
-  noStroke(); fill(c.ink); textSize(20); textStyle(BOLD); textLeading(26);
-  text("CPR-nummer på den, det drejer sig om", width*0.1, insetTop + 150, width*0.8, 60);
-  textStyle(NORMAL);
-  // the field
-  let fw = min(width - 80, 300), fx = (width - fw)/2, fy = insetTop + 216;
-  card(fx, fy, fw, 46, 12);
-  let shown = cpr.slice(0, 6) + (cpr.length > 6 ? "-" + cpr.slice(6) : "");
-  fill(cpr.length ? c.ink : c.soft); textSize(22); textStyle(cpr.length ? BOLD : NORMAL); text(shown || "ddmmåå-xxxx", width/2, fy + 23); textStyle(NORMAL);
-  // keypad
-  let keys = ["1","2","3","4","5","6","7","8","9","slet","0","videre"];
-  let kw = min((width - 48) / 3 - 8, 100), kh = 44, gap = 8;
-  let top = fy + 64, room = height - insetBottom - 190 - top;
-  kh = constrain((room - 3*gap) / 4, 36, 48);
-  let left = width/2 - 1.5*kw - gap;
-  for (let i = 0; i < 12; i++) {
-    let k = keys[i], cx = left + (i % 3) * (kw + gap) + kw/2, cy = top + floor(i/3) * (kh + gap) + kh/2;
-    if (k == "slet") choiceButton(cx, cy, kw, kh, "⌫", "key:del", false, 18);
-    else if (k == "videre") primaryButton(cx, cy, kw, kh, "Videre", "key:go", 15);
-    else choiceButton(cx, cy, kw, kh, k, "key:" + k, false, 20);
-  }
-  fill(c.soft); textSize(13); text("Kender det ikke", width/2, top + 4*(kh+gap) + 10);
-  buttons.push({ x: width/2 - 80, y: top + 4*(kh+gap) - 8, w: 160, h: 36, value: "key:skip" });
-}
-
 function drawConfirm() {
   drawSky(); drawHills(height - insetBottom - 170, height);
   statusBlock();
@@ -284,7 +254,7 @@ function drawConfirm() {
   noStroke(); fill(c.ink); textSize(24); textStyle(BOLD);
   text("Er du sikker på dine svar?", width*0.1, insetTop + 170, width*0.8, 80);
   textStyle(NORMAL); fill(c.soft); textSize(14);
-  text((flowSteps().length - 1) + " svar klar til sygeplejersken", width/2, insetTop + 250);
+  text(flowSteps().length + " svar klar til sygeplejersken", width/2, insetTop + 250);
   primaryButton(width/2, insetTop + 320, min(width*0.72, 320), 54, "Ja, send", "send");
   choiceButton(width/2, insetTop + 390, min(width*0.72, 320), 50, "Gennemgå igen", "review", false, 16);
 }
@@ -517,6 +487,8 @@ function statusBlock() {
 function pulseDot(x, y, r) { let c = col(); let k = 0.5 + 0.5 * sin(frameCount * 0.06); noStroke(); fill(red(c.accent), green(c.accent), blue(c.accent), 60 + 120 * k); circle(x, y, r * 2 + 4 * k); fill(c.accent); circle(x, y, r); }
 
 // ============================================================ landscape
+// The hills and the scene (path, trees, hospital, lampposts) are painted ONCE into offscreen buffers with texture,
+// light and shadow, then drawn as images every frame. Only the walked path, the stones and the character move.
 function setGradient(x0, y0, x1, y1, c1, c2) {
   fill(1, 2, 3);                                        // p5 caches the fill; a dummy colour first, so the next fill() is applied
   let g = drawingContext.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, c1); g.addColorStop(1, c2); drawingContext.fillStyle = g;
@@ -529,8 +501,12 @@ function drawSky(quiet) {
   fill(0);
   if (night) {
     for (let i = 0; i < 40; i++) { let x = (i*149) % width, y = (i*83) % int(height*0.4) + 16; fill(255, 255, 255, 110 + (i%4)*30); circle(x, y, i%3 ? 1.6 : 2.4); }
+    fill(246, 240, 216, 40); circle(60, insetTop + 128, 70);
     fill("#F6F0D8"); circle(60, insetTop + 128, 40); fill(c.skyTop); circle(76, insetTop + 120, 32);
-  } else { fill(255, 226, 138, 70); circle(width - 64, insetTop + 128, 80); fill("#FFE28A"); circle(width - 64, insetTop + 128, 48); }
+  } else {
+    for (let [r, a] of [[200, 18], [140, 30], [90, 60]]) { fill(255, 226, 138, a); circle(width - 64, insetTop + 128, r); }
+    fill("#FFE28A"); circle(width - 64, insetTop + 128, 48);
+  }
   // small clouds in a band between the 112 line and the headline
   for (let [cx, cy, w] of [[90, insetTop + 124, 90], [300, insetTop + 134, 70]]) {
     let drift = (frameCount * 0.06 + cx) % (width + 160) - 80;
@@ -539,53 +515,129 @@ function drawSky(quiet) {
   }
   fill(0);
 }
-function hill(top, a1, a2, bottom, c1, c2) {
-  setGradient(0, top, 0, bottom, c1, c2);
-  beginShape(); vertex(0, a1); bezierVertex(width*0.3, top, width*0.6, a2 + 40, width, a2); vertex(width, bottom); vertex(0, bottom); endShape(CLOSE);
-  // a light rim along the ridge gives the hills some body
-  noFill(); stroke(255, 255, 255, night ? 18 : 55); strokeWeight(5);
-  beginShape(); vertex(0, a1); bezierVertex(width*0.3, top, width*0.6, a2 + 40, width, a2); endShape();
-  noStroke(); fill(0);
+
+const BUF = new Map();
+function buffer(key, paint) {
+  let k = key + "|" + night + "|" + width + "x" + height;
+  if (!BUF.has(k)) {
+    if (BUF.size > 8) BUF.clear();
+    let g = createGraphics(width, height); g.pixelDensity(pixelDensity());
+    paint(g); BUF.set(k, g);
+  }
+  return BUF.get(k);
+}
+function gradFill(g, x0, y0, x1, y1, c1, c2) {
+  g.fill(1, 2, 3);
+  let gr = g.drawingContext.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.drawingContext.fillStyle = gr;
+}
+function ridge(g, a1, top, a2) { g.vertex(0, a1); g.bezierVertex(width*0.3, top, width*0.6, a2 + 40, width, a2); }
+function hillShape(g, a1, top, a2, bottom, dy = 0) { g.beginShape(); g.vertex(0, a1 + dy); g.bezierVertex(width*0.3, top + dy, width*0.6, a2 + 40 + dy, width, a2 + dy); g.vertex(width, bottom); g.vertex(0, bottom); g.endShape(CLOSE); }
+
+// one hill layer: shadow cast on the hill behind, gradient body, grass texture, ridge light, haze
+function paintHill(g, top, a1, a2, bottom, c1, c2, haze, seed) {
+  let c = col();
+  g.noStroke();
+  for (let [dy, al] of [[-12, 10], [-6, 16], [-2, 22]]) { g.fill(0, 20, 10, al); hillShape(g, a1, top, a2, bottom, dy); }
+  gradFill(g, 0, top, 0, bottom, c1, c2); hillShape(g, a1, top, a2, bottom);
+  randomSeed(seed);
+  for (let i = 0; i < 320; i++) {
+    let t = random(), rx = bezierPoint(0, width*0.3, width*0.6, width, t), ry = bezierPoint(a1, top, a2 + 40, a2, t);
+    let d = random(); let y = ry + d*d * (bottom - ry) + 6;
+    let w = random(16, 70), h = w * random(0.22, 0.4);
+    if (random() < 0.5) g.fill(255, 255, 230, random(3, night ? 6 : 12)); else g.fill(0, 25, 10, random(3, 11));
+    g.ellipse(rx + random(-40, 40), y, w, h);
+  }
+  // sunlit side: a soft light wash from the top right, a shade wash bottom left
+  gradFill(g, width, top, 0, bottom, night ? "rgba(255,240,200,0.05)" : "rgba(255,245,200,0.16)", "rgba(0,20,10,0.10)"); hillShape(g, a1, top, a2, bottom);
+  g.noFill();
+  for (let [sw, al] of [[16, 8], [8, 14], [3, 34]]) { g.stroke(255, 255, 235, night ? al * 0.35 : al); g.strokeWeight(sw); g.beginShape(); ridge(g, a1, top, a2); g.endShape(); }
+  g.noStroke();
+  if (haze > 0) { g.fill(red(c.skyBot), green(c.skyBot), blue(c.skyBot), haze); hillShape(g, a1, top, a2, bottom); }
+}
+function hillLayers(top, bottom) {
+  let c = col(), span = bottom - top;
+  let far = c.far, mid = c.mid, near = c.near;
+  return [
+    { top: top,               a1: top + 60,          a2: top + 36,          c1: far[0],  c2: far[1],  haze: night ? 28 : 44, seed: 11 },
+    { top: top + span*0.18,   a1: top + span*0.26,   a2: top + span*0.21,   c1: lerpColor(color(far[0]), color(mid[0]), 0.5).toString(), c2: lerpColor(color(far[1]), color(mid[1]), 0.5).toString(), haze: night ? 16 : 26, seed: 23 },
+    { top: top + span*0.36,   a1: top + span*0.46,   a2: top + span*0.42,   c1: mid[0],  c2: mid[1],  haze: night ? 6 : 12, seed: 37 },
+    { top: top + span*0.56,   a1: top + span*0.62,   a2: top + span*0.70,   c1: lerpColor(color(mid[0]), color(near[0]), 0.5).toString(), c2: lerpColor(color(mid[1]), color(near[1]), 0.5).toString(), haze: 0, seed: 41 },
+    { top: top + span*0.76,   a1: top + span*0.86,   a2: top + span*0.81,   c1: near[0], c2: near[1], haze: 0, seed: 53 }
+  ];
 }
 function drawHills(top, bottom) {
-  let c = col(); noStroke();
-  let span = bottom - top;
-  hill(top, top + 60, top + 36, bottom, c.far[0], c.far[1]);
-  hill(top + span*0.3, top + span*0.42, top + span*0.36, bottom, c.mid[0], c.mid[1]);
-  hill(top + span*0.62, top + span*0.74, top + span*0.70, bottom, c.near[0], c.near[1]);
+  let g = buffer("hills:" + top + ":" + bottom, g => { for (let L of hillLayers(top, bottom)) paintHill(g, L.top, L.a1, L.a2, bottom, L.c1, L.c2, L.haze, L.seed); });
+  image(g, 0, 0);
 }
+
 // The path and the hospital are designed in a 390 px wide frame and scaled, so the shape holds on an iPad too.
-function drawLandscape(top, bottom, figT, pathAlpha, walking, breath) {
-  let c = col();
-  drawHills(top, bottom);
+let SCENE = null;      // the path geometry of the last scene buffer: B(t), L, R, s
+function sceneGeometry(top, bottom) {
   let span = bottom - top;
   let s = min(width / 390, 1.25), ox = (width - 390 * s) / 2;
   const X = x => ox + x * s;
-  let P0 = [X(120), bottom + 6], P1 = [X(372), bottom - span*0.28], P2 = [X(4), top + span*0.42], P3 = [X(176), top + 104];
+  let P0 = [X(120), bottom + 6], P1 = [X(372), bottom - span*0.28], P2 = [X(4), top + span*0.42], P3 = [X(176), top + 112];
   const B = t => { let u = 1-t; return [u*u*u*P0[0]+3*u*u*t*P1[0]+3*u*t*t*P2[0]+t*t*t*P3[0], u*u*u*P0[1]+3*u*u*t*P1[1]+3*u*t*t*P2[1]+t*t*t*P3[1]]; };
   const D = t => { let u = 1-t; return [3*u*u*(P1[0]-P0[0])+6*u*t*(P2[0]-P1[0])+3*t*t*(P3[0]-P2[0]), 3*u*u*(P1[1]-P0[1])+6*u*t*(P2[1]-P1[1])+3*t*t*(P3[1]-P2[1])]; };
   let N = 60, L = [], R = [];
-  for (let i = 0; i <= N; i++) { let t = i/N, [x,y] = B(t), [dx,dy] = D(t), len = Math.hypot(dx,dy) || 1, nx = -dy/len, ny = dx/len, w = (36*(1-t) + 10) * s; L.push([x+nx*w/2, y+ny*w/2]); R.push([x-nx*w/2, y-ny*w/2]); }
+  for (let i = 0; i <= N; i++) { let t = i/N, [x,y] = B(t), [dx,dy] = D(t), len = Math.hypot(dx,dy) || 1, nx = -dy/len, ny = dx/len, w = (38*(1-t) + 11) * s; L.push([x+nx*w/2, y+ny*w/2]); R.push([x-nx*w/2, y-ny*w/2]); }
+  return { B, L, R, N, s, P3, hx: P3[0] + 2, hy: P3[1] - 10 };
+}
+function pathPoly(g, L, R, dx, dy) { g.beginShape(); for (let p of L) g.vertex(p[0]+dx, p[1]+dy); for (let p of R.slice().reverse()) g.vertex(p[0]+dx, p[1]+dy); g.endShape(CLOSE); }
+
+function paintScene(g, top, bottom) {
+  let c = col();
+  let S = sceneGeometry(top, bottom); SCENE = S;
+  let { B, L, R, s, hx, hy } = S;
+  g.noStroke();
+  // the terrace the hospital stands on, and the forecourt where the path ends
+  g.fill(0, 25, 10, 26); g.ellipse(hx + 2, hy + 18, 200 * s, 56 * s);
+  g.fill(night ? "rgba(90,150,120,0.18)" : "rgba(220,245,200,0.28)"); g.ellipse(hx, hy + 12, 190 * s, 50 * s);
+  g.fill(c.path); g.ellipse(hx - 6 * s, hy + 18, 86 * s, 26 * s);
+  // the path: two soft shadows, body, a light centre, edges, pebbles
+  g.fill(0, 0, 0, 16); pathPoly(g, L, R, 0, 9);
+  g.fill(0, 0, 0, 30); pathPoly(g, L, R, 0, 4);
+  g.fill(c.path); pathPoly(g, L, R, 0, 0);
+  g.noFill(); g.stroke(255, 255, 240, night ? 14 : 60); g.strokeWeight(12 * s); g.beginShape(); for (let i = 0; i <= 60; i++) { let [x,y] = B(i/60); g.vertex(x, y); } g.endShape();
+  g.stroke(c.pathEdge); g.strokeWeight(1.6);
+  g.beginShape(); for (let p of L) g.vertex(p[0], p[1]); g.endShape(); g.beginShape(); for (let p of R) g.vertex(p[0], p[1]); g.endShape();
+  g.noStroke(); randomSeed(7);
+  for (let i = 0; i < 70; i++) { let t = random(), [x,y] = B(t), w = (38*(1-t) + 11) * s; g.fill(night ? 255 : 90, night ? 255 : 70, night ? 230 : 40, random(14, 40)); g.ellipse(x + random(-w*0.4, w*0.4), y + random(-3, 3), random(2, 5) * s, random(1.5, 3) * s); }
+  // bushes and flowers along the path
+  randomSeed(19);
+  for (let i = 0; i < 14; i++) { let t = random(0.05, 0.95), side = random() < 0.5 ? -1 : 1, [x,y] = B(t), w = (38*(1-t) + 11) * s; bush(g, x + side * (w/2 + random(10, 26) * s), y + random(2, 8), (10 + 10 * (1-t)) * s); }
+  // trees
+  for (let [t, side, h, kind] of [[0.06,1,60,"round"],[0.12,-1,46,"round"],[0.3,-1,50,"pine"],[0.38,1,42,"round"],[0.55,1,38,"pine"],[0.62,-1,30,"round"],[0.72,-1,30,"pine"],[0.9,1,22,"pine"],[0.86,-1,20,"round"]]) { let [x,y] = B(t); tree(g, x + side*(62*(1-t)+28)*s, y + 6, h * s, kind); }
+  // a row of trees on the ridges
+  randomSeed(29);
+  for (let i = 0; i < 9; i++) { let x = random(width); let hy2 = top + 36 + (bottom-top) * 0.22 + random(-6, 6); if (abs(x - hx) < 110 * s) continue; tree(g, x, hy2, random(14, 20) * s, random() < 0.5 ? "pine" : "round"); }
+  // lampposts
+  for (let t of [0.2, 0.5, 0.8]) { let [x,y] = B(t); x += (t == 0.5 ? -1 : 1) * 20 * s;
+    g.noStroke(); g.fill(0, 0, 0, 40); g.ellipse(x, y + 1, 10, 4);
+    g.stroke(night ? "#C9C2A8" : "#2B2B2B"); g.strokeWeight(2.5); g.line(x, y, x, y - 30); g.line(x - 5, y - 30, x + 5, y - 30); g.noStroke();
+    if (night) { g.fill(255, 226, 138, 25); g.circle(x, y - 35, 60); g.fill(255, 226, 138, 50); g.circle(x, y - 35, 36); g.fill(255, 226, 138, 120); g.circle(x, y - 35, 18); g.fill("#FFF6C8"); g.circle(x, y - 35, 8); g.fill(255, 226, 138, 22); g.ellipse(x, y + 2, 70, 22); }
+    else { g.fill("#8E8E8E"); g.rect(x - 4, y - 38, 8, 7, 2); } }
+  hospital(g, hx, hy - 2, s * 1.15);
+  // a soft vignette, like a lens
+  let v = g.drawingContext.createRadialGradient(width/2, height*0.5, height*0.25, width/2, height*0.5, height*0.8);
+  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, night ? "rgba(0,0,0,0.30)" : "rgba(20,40,20,0.16)");
+  g.fill(1, 2, 3); g.drawingContext.fillStyle = v; g.rect(0, top - 40, width, bottom - top + 40);
+}
+
+function drawLandscape(top, bottom, figT, pathAlpha, walking, breath) {
+  let c = col();
+  drawHills(top, bottom);
+  let g = buffer("scene:" + top + ":" + bottom, g => paintScene(g, top, bottom));
+  let S = sceneGeometry(top, bottom);
+  let { B, L, R, N, s } = S;
   push();
   drawingContext.globalAlpha = pathAlpha;
-  // the forecourt in front of the hospital, so the path arrives somewhere
-  let hx = P3[0] + 2, hy = P3[1] - 8;
-  noStroke(); fill(c.path); ellipse(hx, hy + 10, 70 * s, 22 * s);
-  // the path: shadow, body, edges, the walked part, stones
-  fill(0, 0, 0, 40); beginShape(); for (let p of L) vertex(p[0], p[1]+4); for (let p of R.slice().reverse()) vertex(p[0], p[1]+4); endShape(CLOSE);
-  fill(c.path); beginShape(); for (let p of L) vertex(p[0], p[1]); for (let p of R.slice().reverse()) vertex(p[0], p[1]); endShape(CLOSE);
+  image(g, 0, 0);
+  // the walked part of the path and the stones
   let k = floor(N * figT);
-  if (k > 1) { fill(c.walked); beginShape(); for (let p of L.slice(0, k+1)) vertex(p[0], p[1]); for (let p of R.slice(0, k+1).reverse()) vertex(p[0], p[1]); endShape(CLOSE); }
-  noFill(); stroke(c.pathEdge); strokeWeight(1.5);
-  beginShape(); for (let p of L) vertex(p[0], p[1]); endShape(); beginShape(); for (let p of R) vertex(p[0], p[1]); endShape();
+  if (k > 1) { noStroke(); fill(red(c.walked), green(c.walked), blue(c.walked), 200); beginShape(); for (let p of L.slice(0, k+1)) vertex(p[0], p[1]); for (let p of R.slice(0, k+1).reverse()) vertex(p[0], p[1]); endShape(CLOSE); }
   noStroke();
-  for (let j = 1; j < 10; j++) { let t = j/10, [x,y] = B(t); if (t <= figT) { fill(c.accent); circle(x, y-3, 7*s); } else { fill(night ? "rgba(201,194,168,0.45)" : "rgba(255,255,255,0.6)"); circle(x, y-3, 5.5*s); } }
-  // trees
-  for (let [t, side, h, kind] of [[0.08,1,52,"round"],[0.3,-1,44,"pine"],[0.55,1,36,"pine"],[0.72,-1,30,"round"],[0.9,1,22,"pine"]]) { let [x,y] = B(t); tree(x + side*(60*(1-t)+26)*s, y+6, h*s, kind); }
-  // lampposts
-  for (let t of [0.2, 0.5, 0.8]) { let [x,y] = B(t); x += (t == 0.5 ? -1 : 1) * 18 * s; stroke(night ? "#C9C2A8" : "#2B2B2B"); strokeWeight(2.5); line(x, y, x, y-30); line(x-5, y-30, x+5, y-30); noStroke();
-    if (night) { fill(255, 226, 138, 45); circle(x, y-35, 36); fill(255, 226, 138, 115); circle(x, y-35, 18); fill("#FFF6C8"); circle(x, y-35, 8); } else { fill("#8E8E8E"); rect(x-4, y-38, 8, 7, 2); } }
-  hospital(hx, hy - 4, s);
+  for (let j = 1; j < 10; j++) { let t = j/10, [x,y] = B(t); fill(0, 0, 0, 30); ellipse(x, y - 1, 8*s, 4*s); if (t <= figT) { fill(c.accent); circle(x, y-3, 7*s); fill(255, 255, 255, 90); circle(x - 1.5*s, y - 4.5*s, 2.5*s); } else { fill(night ? "rgba(201,194,168,0.5)" : "rgba(255,255,255,0.7)"); circle(x, y-3, 5.5*s); } }
   // the character: walks during the intro, bounces while waiting
   let [fx, fy] = B(walking ? figT : 0.04 + 0.96 * figT);
   let bounce = walking ? abs(sin(frameCount * 0.25)) * 4 : abs(sin(frameCount * 0.09)) * 5;
@@ -595,36 +647,66 @@ function drawLandscape(top, bottom, figT, pathAlpha, walking, breath) {
   pop();
   noStroke(); fill(c.ground); rect(0, bottom, width, height - bottom);
 }
-// a small block of a building: front, side, roof, canopy, windows, cross. (hx, hy) is the middle of the front's foot.
-function hospital(hx, hy, s) {
-  push(); translate(hx, hy); scale(s);
-  noStroke();
-  fill(0, 0, 0, 55); ellipse(6, 4, 110, 18);                                     // shadow on the grass
-  fill(night ? "#9E9A8A" : "#C9CFCC"); rect(-40, -2, 58, 6, 1);                 // plinth under the front
-  fill(night ? "#E6E0CC" : "#F7F7F2"); rect(-40, -46, 58, 46);                   // front face
-  fill(night ? "#B5B09E" : "#D9DEDC"); quad(18, -46, 40, -60, 40, -14, 18, 0);    // side face
-  fill(night ? "#C9C4B0" : "#E8ECEA"); quad(-40, -46, -18, -60, 40, -60, 18, -46); // roof
-  fill(night ? "#8F8B7C" : "#B9C2BF"); quad(-40, -46, -18, -60, -18, -58, -40, -44); // roof edge
-  // entrance: canopy, door, two steps
-  fill(night ? "#8F8B7C" : "#B9C2BF"); quad(-20, -22, -2, -22, 2, -18, -24, -18);
-  fill(night ? "#5E5A4C" : "#8FA7B5"); rect(-18, -18, 14, 18, 1);
-  fill(night ? "#FFE28A" : "#C9DEEA"); rect(-16, -16, 10, 9, 1);
-  fill(night ? "#9E9A8A" : "#C9CFCC"); rect(-24, 2, 26, 3, 1); rect(-27, 5, 32, 3, 1);
-  // windows, two rows
-  let w = night ? "#FFE28A" : "#BFD8EA", f = night ? "#8F8B7C" : "#D0D6D4";
-  for (let [wx, wy] of [[-34,-40],[-20,-40],[-6,-40],[8,-40],[-34,-26],[8,-26],[-34,-12],[8,-12]]) { fill(f); rect(wx-1, wy-1, 10, 9, 1); fill(w); rect(wx, wy, 8, 7, 1); }
-  for (let [wx, wy] of [[23,-44],[31,-49],[23,-30],[31,-35],[23,-16],[31,-21]]) { fill(night ? "#E0C878" : "#A9C4D6"); quad(wx, wy, wx+5, wy-3, wx+5, wy+4, wx, wy+7); }
-  if (night) { fill(255, 226, 138, 40); ellipse(-11, -8, 36, 18); }
+
+// a small block of a building that stands on the ground: contact shadow, plinth, front, side, roof, canopy, windows, cross, hedges
+function hospital(g, hx, hy, s) {
+  g.push(); g.translate(hx, hy); g.scale(s);
+  g.noStroke();
+  // cast shadow (light from the top right) and the contact shadow along both bottom edges
+  g.fill(0, 20, 10, 45); g.ellipse(-14, 8, 120, 26);
+  for (let [o, al] of [[7, 18], [4, 30], [1.5, 60]]) { g.fill(0, 15, 8, al); g.beginShape(); g.vertex(-42, 0); g.vertex(18, 0); g.vertex(42, -14); g.vertex(42 + o, -14 + o*0.6); g.vertex(18 + o, o); g.vertex(-42 - o*0.4, o); g.endShape(CLOSE); }
+  g.fill(night ? "#8F8B7C" : "#B9C2BF"); g.quad(-42, -3, 18, -3, 18, 1, -42, 1);                // plinth
+  g.fill(night ? "#9E9A8A" : "#A9B3B0"); g.quad(18, -3, 42, -17, 42, -13, 18, 1);
+  gradFill(g, -40, -48, -40, 0, night ? "#E9E3D0" : "#FBFBF7", night ? "#CFC9B6" : "#E3E6E2"); g.rect(-40, -48, 58, 46);   // front face
+  gradFill(g, 18, -48, 40, -48, night ? "#B5B09E" : "#D6DCDA", night ? "#8F8B7C" : "#B8C2BE"); g.quad(18, -48, 40, -62, 40, -16, 18, -2); // side face
+  g.fill(night ? "#C9C4B0" : "#EEF1EF"); g.quad(-40, -48, -18, -62, 40, -62, 18, -48);          // roof
+  g.fill(night ? "#8F8B7C" : "#C3CBC8"); g.quad(-40, -48, -18, -62, -18, -60, -40, -46);
+  g.fill(night ? "#A8A392" : "#CBD2CF"); g.quad(-6, -60, 2, -65, 14, -65, 6, -60); g.rect(-6, -60, 12, 3);  // rooftop unit
+  // entrance: canopy with shadow, glass door, steps
+  g.fill(0, 0, 0, 35); g.quad(-21, -20, 0, -20, 4, -15, -25, -15);
+  g.fill(night ? "#8F8B7C" : "#B9C2BF"); g.quad(-21, -23, 0, -23, 4, -19, -25, -19);
+  g.fill(night ? "#5E5A4C" : "#8FA7B5"); g.rect(-18, -19, 14, 17, 1);
+  g.fill(night ? "#FFE28A" : "#D5E6EF"); g.rect(-16.5, -17.5, 5, 13, 0.5); g.rect(-10.5, -17.5, 5, 13, 0.5);
+  g.fill(night ? "#9E9A8A" : "#C9CFCC"); g.rect(-24, -1, 26, 3, 1); g.rect(-27, 2, 32, 3, 1);
+  // windows with a reflection
+  let w = night ? "#FFE28A" : "#BFD8EA", f = night ? "#8F8B7C" : "#C9D1CE";
+  for (let [wx, wy] of [[-35,-42],[-21,-42],[-7,-42],[7,-42],[-35,-28],[7,-28],[-35,-14],[7,-14]]) { g.fill(f); g.rect(wx-1, wy-1, 10, 9, 1); g.fill(w); g.rect(wx, wy, 8, 7, 1); g.fill(255, 255, 255, night ? 40 : 110); g.triangle(wx, wy, wx + 4, wy, wx, wy + 5); }
+  for (let [wx, wy] of [[23,-46],[31,-51],[23,-32],[31,-37],[23,-18],[31,-23]]) { g.fill(night ? "#E0C878" : "#A9C4D6"); g.quad(wx, wy, wx+5, wy-3, wx+5, wy+4, wx, wy+7); }
+  if (night) { g.fill(255, 226, 138, 45); g.ellipse(-11, -6, 40, 20); }
   // the cross on a white sign above the entrance
-  fill("#FFFFFF"); rect(-17, -36, 12, 12, 2);
-  fill("#D8363C"); rect(-12.5, -34, 3, 8, 0.5); rect(-15, -31.5, 8, 3, 0.5);
-  pop();
+  g.fill(0, 0, 0, 25); g.rect(-16, -37, 12, 12, 2);
+  g.fill("#FFFFFF"); g.rect(-17, -38, 12, 12, 2);
+  g.fill("#D8363C"); g.rect(-12.5, -36, 3, 8, 0.5); g.rect(-15, -33.5, 8, 3, 0.5);
+  if (night) { g.fill(216, 54, 60, 40); g.circle(-11, -32, 22); }
+  g.pop();
+  // hedges at the foot of the building
+  for (let i = 0; i < 4; i++) bush(g, hx + (-36 + i * 8) * s, hy + 3 * s, 7 * s);
+  for (let i = 0; i < 3; i++) bush(g, hx + (6 + i * 8) * s, hy + 3 * s, 7 * s);
 }
-function tree(x, y, h, kind) {
-  let light = night ? "#1F4A3C" : "#2E6B4C", dark = night ? "#12302A" : "#1C4631", trunk = night ? "#3A2B22" : "#6B4A33";
-  noStroke(); fill(0, 0, 0, 45); ellipse(x, y+2, h*0.7, 6);
-  if (kind == "pine") { fill(trunk); rect(x-2, y-6, 4, 8, 1); for (let [w, hh, yy] of [[h*0.7, h*0.45, y-6], [h*0.55, h*0.4, y-6-h*0.3], [h*0.4, h*0.35, y-6-h*0.55]]) { fill(light); triangle(x, yy-hh, x-w/2, yy, x, yy); fill(dark); triangle(x, yy-hh, x+w/2, yy, x, yy); } }
-  else { fill(trunk); rect(x-2, y-8, 4, 10, 1); fill(light); circle(x, y-8-h*0.35, h*0.8); fill(dark); arc(x, y-8-h*0.35, h*0.8, h*0.8, -HALF_PI, HALF_PI); }
+function bush(g, x, y, r) {
+  let light = night ? "#245244" : "#3E8A5C", dark = night ? "#15382E" : "#245F3D";
+  g.noStroke(); g.fill(0, 0, 0, 40); g.ellipse(x, y + r*0.35, r*2.2, r*0.7);
+  g.fill(dark); g.circle(x - r*0.5, y, r*1.1); g.circle(x + r*0.5, y, r*1.1); g.circle(x, y - r*0.3, r*1.3);
+  g.fill(light); g.circle(x - r*0.15, y - r*0.5, r*0.8); g.circle(x + r*0.45, y - r*0.25, r*0.6);
+  if (!night && r > 8) { for (let i = 0; i < 3; i++) { g.fill(i % 2 ? "#F4B6C2" : "#FFF3C4"); g.circle(x + (i - 1) * r*0.45, y - r*0.6 + (i % 2) * r*0.3, r*0.22); } }
+}
+function tree(g, x, y, h, kind) {
+  let light = night ? "#246050" : "#4E9A6A", mid = night ? "#1B4A3E" : "#2F7A52", dark = night ? "#12302A" : "#1F5A3B", trunk = night ? "#3A2B22" : "#6B4A33";
+  g.noStroke(); g.fill(0, 0, 0, 50); g.ellipse(x + h*0.06, y + 2, h*0.8, h*0.16);
+  if (kind == "pine") {
+    g.fill(trunk); g.rect(x - h*0.04, y - h*0.15, h*0.08, h*0.17, 1);
+    for (let [w, hh, yy] of [[h*0.72, h*0.42, y - h*0.1], [h*0.58, h*0.4, y - h*0.36], [h*0.42, h*0.36, y - h*0.6], [h*0.26, h*0.3, y - h*0.82]]) {
+      g.fill(dark); g.triangle(x, yy - hh, x - w/2, yy, x + w/2, yy);
+      g.fill(light); g.triangle(x, yy - hh, x - w/2, yy, x, yy); g.fill(mid); g.triangle(x, yy - hh, x + w*0.08, yy, x, yy);
+    }
+  } else {
+    g.fill(trunk); g.rect(x - h*0.05, y - h*0.3, h*0.1, h*0.32, 1);
+    let cy = y - h*0.55, r = h*0.5;
+    g.fill(dark); g.circle(x, cy + r*0.1, r*2); g.circle(x - r*0.5, cy + r*0.2, r*1.3); g.circle(x + r*0.5, cy + r*0.2, r*1.3);
+    g.fill(mid); g.circle(x - r*0.1, cy - r*0.1, r*1.6); g.circle(x + r*0.45, cy - r*0.2, r*1.1);
+    g.fill(light); g.circle(x - r*0.35, cy - r*0.45, r*0.9); g.circle(x + r*0.15, cy - r*0.65, r*0.7);
+    g.fill(255, 255, 220, night ? 10 : 50); g.circle(x - r*0.45, cy - r*0.6, r*0.5);
+  }
 }
 function character(x, y, k) {
   noStroke(); fill(0, 0, 0, 60); ellipse(x, y+4*k, 18*k, 6*k);
@@ -649,9 +731,9 @@ function drawPanel() {
   fill("#1E3A2C"); textSize(17); textStyle(BOLD); text("Testleder", width/2, y + 24);
   textStyle(NORMAL); textSize(12); fill("#5E7A68");
   let yy = y + 50;
-  text("Scenarie (kortet)", width/2, yy); yy += 14;
-  for (let i = 0; i < SCENARIOS.length; i++) { panelChoice(x + 12, yy + i*28, w - 24, 24, SCENARIOS[i], "p:sc:" + i, test.scenario == i); }
-  yy += SCENARIOS.length * 28 + 10;
+  text("Alder (vælges på startskærmen)", width/2, yy); yy += 14;
+  for (let i = 0; i < AGES.length; i++) panelChoice(x + 12 + (i % 3) * ((w-24)/3), yy + floor(i/3) * 30, (w-24)/3 - 4, 26, AGES[i][0], "p:age:" + i, ageChoice == i, 11);
+  yy += 70;
   text("Støj i høretelefonerne", width/2, yy); yy += 14;
   for (let i = 0; i < NOISES.length; i++) panelChoice(x + 12 + i * ((w-24)/5), yy, (w-24)/5 - 4, 26, NOISES[i], "p:noise:" + NOISES[i], test.noise == NOISES[i], 11);
   yy += 40; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
@@ -686,7 +768,7 @@ function panelChoice(x, y, w, h, label, value, selected, size) {
 function loadResults() { try { return JSON.parse(localStorage.getItem("venteunivers-results") || "[]"); } catch (e) { return []; } }
 function saveResult(r) { let a = loadResults(); a.push(r); try { localStorage.setItem("venteunivers-results", JSON.stringify(a)); } catch (e) {} }
 function resultsCsv() {
-  let rows = [["tid","scenarie","stoej","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"]];
+  let rows = [["tid","person","stoej","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"]];
   for (let r of loadResults()) rows.push([r.time, r.scenario, r.noise, r.waitMin, r.estimateMin, r.calm, r.energy, r.flowDone, r.status]);
   return rows.map(r => r.join(";")).join("\n");
 }
@@ -708,11 +790,12 @@ function handle(v) {
     if (k == "music") musicOn = !musicOn;
     return;
   }
-  if (state == "sms" && v == "open-link") { enter("intro"); return; }
+  if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); answers = {}; enter("sms"); return; }
+  if (state == "sms" && v == "open-link") { enter("intro"); startAmbience(); return; }
   if (v == "home") { enter("home"); return; }
   if (v.startsWith("go:")) {
     let t = v.slice(3);
-    if (t == "flow") { if (flowDone) { cardIndex = 0; cardShownAt = millis(); enter("advice"); say(adviceCards()[0][1]); } else { answers = {}; cpr = ""; qIndex = 0; enter("flow"); say("Tast CPR-nummeret på den, det drejer sig om."); } }
+    if (t == "flow") { if (flowDone) { cardIndex = 0; cardShownAt = millis(); enter("advice"); say(adviceCards()[0][1]); } else { answers = {}; qIndex = 0; enter("flow"); say(flowSteps()[0].text); } }
     else {
       enter(t);
       if (t == "calm") say("Træk vejret ind gennem næsen, og ud gennem munden.");
@@ -721,18 +804,9 @@ function handle(v) {
     }
     return;
   }
-  if (state == "flow" && v.startsWith("key:")) {
-    let k = v.slice(4);
-    if (k == "del") cpr = cpr.slice(0, -1);
-    else if (k == "skip") { answers.cpr = "skip"; qIndex = 1; say(flowSteps()[1].text); }
-    else if (k == "go") { let g = ageGroupFromCpr(cpr); if (g) { answers.who = g; qIndex = 0; say(flowSteps()[0].text); } else { answers.cpr = "skip"; qIndex = 1; say(flowSteps()[1].text); } }
-    else if (cpr.length < 10) cpr += k;
-    return;
-  }
   if (state == "flow" && v.startsWith("ans:")) {
     let steps = flowSteps(); let q = steps[qIndex]; let val = v.slice(4);
     answers[q.key] = val;
-    if (q.key == "who") { answers.who = val; qIndex = 0; say(flowSteps()[0].text); return; }
     if (q.redIf && val == q.redIf) { enter("red"); say("Læg på, og ring et, et, to nu."); return; }
     qIndex += 1;
     let next = flowSteps();
@@ -755,7 +829,7 @@ function handle(v) {
     else if (v.startsWith("scale:")) {
       if (survey.step == 1) { survey.calm = int(v.slice(6)); survey.step = 2; }
       else { survey.energy = int(v.slice(6));
-        saveResult({ time: new Date().toISOString().slice(0,16).replace("T"," "), scenario: SCENARIOS[test.scenario], noise: test.noise, waitMin: test.waitMin, estimateMin: survey.estimate, calm: survey.calm, energy: survey.energy, flowDone: flowDone ? "ja" : "nej", status: test.status });
+        saveResult({ time: new Date().toISOString().slice(0,16).replace("T"," "), scenario: personLine(), noise: test.noise, waitMin: test.waitMin, estimateMin: survey.estimate, calm: survey.calm, energy: survey.energy, flowDone: flowDone ? "ja" : "nej", status: test.status });
         enter("done"); }
     }
     return;
@@ -765,18 +839,18 @@ function handle(v) {
 function handlePanel(v) {
   if (v == "close") { panelOpen = false; return; }
   if (v == "none") return;
-  if (v.startsWith("sc:")) test.scenario = int(v.slice(3));
+  if (v.startsWith("age:")) ageChoice = int(v.slice(4));
   if (v.startsWith("noise:")) test.noise = v.slice(6);
   if (v.startsWith("wait:")) test.waitMin = int(v.slice(5));
   if (v.startsWith("status:")) test.status = v.slice(7);
   if (v == "csv") { try { navigator.clipboard.writeText(resultsCsv()); } catch (e) {} }
   if (v == "clear") { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
-  if (v == "testnoise") { startSound(); if (test.noise != "ingen" && noiseFiles[test.noise]) { let f = noiseFiles[test.noise]; if (!f.isPlaying()) f.loop(); f.setVolume(0.7, 0.3); setTimeout(() => { if (state == "sms" || state == "intro" || panelOpen) f.setVolume(0, 0.5); }, 3000); } }
+  if (v == "testnoise") { startSound(); if (test.noise != "ingen" && noiseFiles[test.noise]) { let f = noiseFiles[test.noise]; if (!f.isPlaying()) f.loop(); f.setVolume(0.9, 0.3); setTimeout(() => { if (!ambienceOn) f.setVolume(0, 0.5); }, 3000); } }
   if (v == "start") { panelOpen = false; restart(); }
 }
 function restart() {
   stopAmbience();
-  state = "sms"; stateSince = millis(); waitStart = 0; answeredAt = 0; answers = {}; cpr = ""; qIndex = 0; flowDone = false; cardIndex = 0; lastSpokenNumber = 0;
+  state = "age"; stateSince = millis(); waitStart = 0; answeredAt = 0; answers = {}; qIndex = 0; flowDone = false; cardIndex = 0; lastSpokenNumber = 0;
   if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
 }
 function mouseReleased() { tap(mouseX, mouseY); }
@@ -803,12 +877,13 @@ function startSound() {
     ringOsc = new p5.Oscillator("sine"); ringOsc.freq(425); ringOsc.amp(0); ringOsc.start();
   } catch (e) { soundError = String(e).slice(0, 60); }
 }
+let ambienceOn = false;
 function startAmbience() {
   if (!soundStarted) return;
   for (let k in noiseFiles) { if (!noiseFiles[k].isPlaying() && noiseFiles[k].isLoaded()) { noiseFiles[k].setVolume(0); noiseFiles[k].loop(); } }
-  if (test.noise != "ingen" && noiseFiles[test.noise]) noiseFiles[test.noise].setVolume(0.7, 1.5);
+  ambienceOn = true;
 }
-function stopAmbience() { for (let k in noiseFiles) if (noiseFiles[k].isPlaying()) noiseFiles[k].setVolume(0, 0.5); }
+function stopAmbience() { ambienceOn = false; }
 function updateSound(breath) {
   if (!soundStarted || !ringOsc) return;
   if (speaking && millis() > speakingUntil && !speechSynthesis.speaking) speaking = false;
@@ -819,6 +894,7 @@ function updateSound(breath) {
   musicFiles.mindfulness.setVolume(state == "calm" ? musicLevel : 0, 0.2);
   let ring = (inCall && !musicOn) ? ((millis() % 5000) < 1000 ? 0.08 : 0) : 0;
   ringOsc.amp(ring * duck, 0.05);
+  for (let k in noiseFiles) { let on = ambienceOn && test.noise == k && !answeredAt; noiseFiles[k].setVolume(on ? 0.9 : 0, 0.4); }
 }
 function say(text_) {
   if (!voiceOn || !window.speechSynthesis) return;
