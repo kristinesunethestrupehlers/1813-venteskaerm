@@ -20,7 +20,7 @@ let stateSince = 0;             // millis() when the state was entered
 // ------------------------------------------------------------ test settings (the test leader can change them)
 // the person the call is about: the name is fixed, the age comes from the card the tester drew
 const PERSON_NAME = "Alex";
-const AGES = [["2 måneder", "infant"], ["2 år", "child"], ["5 år", "child"], ["8 år", "child"], ["34 år", "adult"], ["67 år", "adult"]];
+const AGES = [["0 til 3 måneder", "infant"], ["4 måneder til 12 år", "child"], ["13 år og op", "adult"]];   // akut.dk's own groups
 let ageChoice = -1;
 function personLine() { return ageChoice < 0 ? "" : PERSON_NAME + ", " + AGES[ageChoice][0]; }
 const NOISES = ["ingen", "baby", "trafik", "storm", "børn"];
@@ -58,7 +58,7 @@ function flowSteps() {
   let sub = th.sub[int(answers.sub || 0)];
   let pk = sub[2] || "general";
   if (pk == "direct") return steps;                         // psychiatric help / assault: no more questions
-  PAGES[pk].questions.slice(0, 3).forEach((q,i) => steps.push({ key: "q"+i, text: q.da, buttons: (q.buttons || YES_NO).map(b => [b[0], b[2]]), redIf: q.redIf }));
+  PAGES[pk].questions.filter(q => !/under (\S+ )?(måneder|år)\?/.test(q.da)).slice(0, 3).forEach((q,i) => steps.push({ key: "q"+i, text: q.da, buttons: (q.buttons || YES_NO).map(b => [b[0], b[2]]), redIf: q.redIf }));
   return steps;
 }
 function currentPage() {
@@ -98,7 +98,6 @@ function col() { return night ? C.night : C.day; }
 function preload() {
   musicFiles.piano = loadSound(MUSIC.piano);
   musicFiles.mindfulness = loadSound(MUSIC.mindfulness);
-  for (let k in NOISE_FILES) noiseFiles[k] = loadSound(NOISE_FILES[k]);
 }
 
 function setup() {
@@ -107,6 +106,7 @@ function setup() {
   readInsets();
   night = isNight();
   if (window.speechSynthesis) { voices = speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); }; }
+  for (let k in NOISE_FILES) noiseFiles[k] = loadSound(NOISE_FILES[k], () => {}, e => { soundError = (soundError + " " + k + ": " + String(e && e.message || e)).slice(0, 90); });
   enter("age");
 }
 function readInsets() {
@@ -159,11 +159,8 @@ function drawAge() {
   fill(c.ink); textSize(24); textStyle(BOLD); textLeading(30);
   text("Hvor gammel er den, du ringer om?", width*0.1, insetTop + 84, width*0.8, 80);
   textStyle(NORMAL); fill(c.soft); textSize(13); text("Se på kortet, du har trukket", width/2, insetTop + 170);
-  let bw = min(width*0.4, 170), bh = 54, gap = 12;
-  for (let i = 0; i < AGES.length; i++) {
-    let cx = width/2 + (i % 2 == 0 ? -1 : 1) * (bw/2 + gap/2), cy = insetTop + 230 + floor(i/2) * (bh + gap);
-    choiceButton(cx, cy, bw, bh, AGES[i][0], "age:" + i, ageChoice == i, 17);
-  }
+  let bw = min(width*0.78, 340), bh = 56, gap = 14;
+  for (let i = 0; i < AGES.length; i++) choiceButton(width/2, insetTop + 230 + i * (bh + gap), bw, bh, AGES[i][0], "age:" + i, ageChoice == i, 18);
   fill(c.soft); textSize(12); text(PERSON_NAME + " er navnet i simuleringen", width/2, insetTop + 230 + 3 * (bh + gap) + 6);
 }
 function drawSms() {
