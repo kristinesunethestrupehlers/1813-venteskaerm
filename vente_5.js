@@ -105,7 +105,8 @@ const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-
 let musicFiles = {}, noiseFiles = {};
 let musicOn = true, voiceOn = false, soundStarted = false, soundError = "";
 let ringOsc;
-let noiseStarted = {};          // each noise file is started exactly once (p5's isPlaying() is unreliable right after a restart)
+let noiseStarted = {};
+let hornFile = null;            // a real car horn (CC0) for the sudden sounds          // each noise file is started exactly once (p5's isPlaying() is unreliable right after a restart)
 let speaking = false, speakingUntil = 0, duck = 1;
 let voices = [];
 let currentUtterance = null;
@@ -133,6 +134,7 @@ function setup() {
   night = isNight();
   if (window.speechSynthesis) { voices = speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); }; }
   for (let k in NOISE_FILES) noiseFiles[k] = loadSound(NOISE_FILES[k], () => {}, e => { soundError = (soundError + " " + k + ": " + String(e && e.message || e)).slice(0, 90); });
+  hornFile = loadSound("lyd/event-horn.mp3", () => {}, () => {});
   connectRemote();
   enter("age");
 }
@@ -944,7 +946,7 @@ function handlePanel(v) {
   if (v.startsWith("noise:")) { test.noise = v.slice(6); test.noiseChosen = true; }
   if (v.startsWith("wait:")) test.waitMin = int(v.slice(5));
   if (v.startsWith("status:")) test.status = v.slice(7);
-  if (v.startsWith("mode:")) test.mode = v.slice(5);
+  if (v.startsWith("mode:")) { test.mode = v.slice(5); panelOpen = false; if (state != "age") { restart(); if (ageChoice >= 0) { answers = {}; startTest(); } } }
   if (v.startsWith("events:")) test.events = v.endsWith("1");
   if (v.startsWith("escalate:")) test.escalate = v.endsWith("1");
   if (v.startsWith("sit:")) { panelOpen = false; showSituation(situationsForAge()[int(v.slice(4))]); }
@@ -1038,8 +1040,8 @@ function tone(type, freq, startMs, durMs, level) {
 }
 function playEvent(kind) {
   if (kind == "phone") { for (let r = 0; r < 3; r++) for (let i = 0; i < 8; i++) tone("triangle", i % 2 ? 1300 : 1000, r * 900 + i * 50, 45, 0.25); }
-  if (kind == "doorbell") { tone("sine", 659, 0, 350, 0.35); tone("sine", 523, 380, 700, 0.35); tone("sine", 1318, 0, 200, 0.08); }
-  if (kind == "horn") { tone("sawtooth", 420, 0, 700, 0.18); tone("sawtooth", 530, 0, 700, 0.14); tone("sawtooth", 420, 900, 400, 0.18); tone("sawtooth", 530, 900, 400, 0.14); }
+  if (kind == "doorbell") { tone("sine", 659, 0, 420, 0.9); tone("triangle", 659, 0, 420, 0.25); tone("sine", 1318, 0, 250, 0.15); tone("sine", 523, 450, 900, 0.9); tone("triangle", 523, 450, 900, 0.25); tone("sine", 1046, 450, 300, 0.12); }
+  if (kind == "horn") { if (hornFile && hornFile.isLoaded()) { try { hornFile.setVolume(1); hornFile.play(); } catch (e) {} } else { tone("sawtooth", 420, 0, 700, 0.3); tone("sawtooth", 530, 0, 700, 0.25); } }
 }
 
 // ============================================================ remote control from a second phone (MQTT over WebSocket, public broker)
@@ -1071,7 +1073,7 @@ function publishState() {
   remotePublish("state", JSON.stringify(st), { retain: true });
 }
 function handleRemote(c) {
-  if (c.set) { for (let k in c.set) { if (k == "age") { ageChoice = int(c.set.age); fitNoiseToAge(); } else if (k == "noise") { test.noise = c.set.noise; test.noiseChosen = true; } else if (k in test) test[k] = c.set[k]; } }
+  if (c.set) { for (let k in c.set) { if (k == "age") { ageChoice = int(c.set.age); fitNoiseToAge(); } else if (k == "noise") { test.noise = c.set.noise; test.noiseChosen = true; } else if (k == "mode") { if (test.mode != c.set.mode) { test.mode = c.set.mode; if (state != "age") { restart(); if (ageChoice >= 0) { answers = {}; startTest(); } } } } else if (k in test) test[k] = c.set[k]; } }
   if (c.start) { panelOpen = false; restart(); if (c.start == "now" && ageChoice >= 0) { answers = {}; startTest(); } }
   if (c.situation) showSituation(String(c.situation).slice(0, 80));
   if (c.answer && waitStart && !answeredAt) waitStart = millis() - waitTotalMs();

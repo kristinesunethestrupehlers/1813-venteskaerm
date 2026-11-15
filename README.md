@@ -26,3 +26,4 @@ Tastatur på computer: n = nat/dag, v = stemme, m = musik, t = testlederpanel, m
   - Trafik (mix): "2023-Mai-20 14h38min Wien äußerer Lerchenfelder Gürtel Thaliagasse Sirene autos motorrad", DrTrumpet, CC BY-SA 4.0, og "Audio sound of a busy traffic in Porthacourt", ElemePodcast, CC BY 4.0.
   - Storm (mix): "Summer thunderstorm in the woods", Serg Childed; "Mansoura city weather, Heavy rains and thunder", Aimty17; "Thunder.wav", Subhashish Panigrahi; "Thunder 01", Amuzujoe. Alle CC BY-SA 4.0.
   - Folk der snakker: "Restaurant ambience", stephan, public domain.
+  - Bildyt (pludselig lyd): "Car Horn", 15HPanska_Ruttner_Jan, CC0. Telefon og dørklokke er syntetiske.

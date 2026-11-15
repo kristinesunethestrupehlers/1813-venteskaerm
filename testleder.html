@@ -48,6 +48,7 @@
 <div class="box">
   <h2>Version</h2>
   <div class="row" id="modes"></div>
+  <div class="hint">Skifter du version, mens en test kører, starter testen forfra i den valgte version.</div>
 </div>
 
 <div class="box">
@@ -73,11 +74,17 @@
   <h2>Ventetid og køstatus</h2>
   <div class="row" id="waits"></div>
   <div class="row" style="margin-top:8px" id="statuses"></div>
-  <div class="row" style="margin-top:8px">
-    <button class="ghost" onclick="send({night:true})">nat</button>
-    <button class="ghost" onclick="send({night:false})">dag</button>
-    <button class="ghost" onclick="send({voice:true})">stemme til</button>
-    <button class="ghost" onclick="send({voice:false})">stemme fra</button>
+  <div class="row" style="margin-top:8px; align-items:center">
+    <span style="font-size:14px; width:70px">Lys</span>
+    <button id="day" onclick="send({night:false}); st.night=false; render()">dag</button><button id="night" onclick="send({night:true}); st.night=true; render()">nat</button>
+  </div>
+  <div class="row" style="margin-top:8px; align-items:center">
+    <span style="font-size:14px; width:70px">Stemme</span>
+    <button id="voice0" onclick="send({voice:false}); st.voiceOn=false; render()">fra</button><button id="voice1" onclick="send({voice:true}); st.voiceOn=true; render()">til</button>
+  </div>
+  <div class="row" style="margin-top:8px; align-items:center">
+    <span style="font-size:14px; width:70px">Musik</span>
+    <button id="music0" onclick="send({music:false}); st.musicOn=false; render()">fra</button><button id="music1" onclick="send({music:true}); st.musicOn=true; render()">til</button>
   </div>
 </div>
 
@@ -152,6 +159,9 @@ function render() {
   document.getElementById("status").innerHTML = `<div style="grid-column:1/3"><b>Forbindelse:</b> ${appSeen}</div>${cmdLine}<div style="grid-column:1/3"><b>Spiller lige nu:</b> ${st.ambience ? (gains || "intet (styrken er 0)") : "støjen er ikke tændt endnu (den tænder, når indledningen er færdig)"}</div><div><b>Skærm:</b> ${STATE_DA[st.state] || st.state || "–"}</div><div><b>Person:</b> ${st.person || "–"}</div><div><b>Version:</b> ${t.mode == "1813" ? "1813 i dag" : "venteunivers"}</div><div><b>Støj:</b> ${t.noise || "–"}${t.events ? " + lyde" : ""}${t.escalate ? " + optrapning" : ""}</div><div><b>Ventetid:</b> ${t.waitMin} min</div><div><b>Lyd startet:</b> ${st.sound ? "ja" : "nej (deltageren skal trykke først)"}</div><div><b>Situation:</b> ${st.situation ? "vises nu" : (st.choice || "–")}</div><div><b>Resultater:</b> ${st.results ?? "–"}</div>`;
   fill("ages", AGES.map((a, i) => btn(a[0], st.age == i, () => set("age", i))));
   fill("modes", [["app","Venteunivers"],["1813","1813 i dag (kontrol)"]].map(m => btn(m[1], t.mode == m[0], () => set("mode", m[0]))));
+  document.getElementById("day").className = st.night ? "" : "on"; document.getElementById("night").className = st.night ? "on" : "";
+  document.getElementById("voice0").className = st.voiceOn ? "" : "on"; document.getElementById("voice1").className = st.voiceOn ? "on" : "";
+  document.getElementById("music0").className = st.musicOn === false ? "on" : ""; document.getElementById("music1").className = st.musicOn === false ? "" : "on";
   fill("noises", ALL_NOISES.map(n => btn(n[1], t.noise == n[0], () => set("noise", n[0]))));
   document.getElementById("events0").className = t.events ? "" : "on"; document.getElementById("events1").className = t.events ? "on" : "";
   document.getElementById("escalate0").className = t.escalate ? "" : "on"; document.getElementById("escalate1").className = t.escalate ? "on" : "";
