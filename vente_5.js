@@ -32,6 +32,8 @@ const NOISE_SETS = {
   adult:  [["ingen", "ingen"], ["trafik", "trafik"], ["storm", "storm"], ["snak", "folk der snakker"], ["blandet", "blandet"], ["skiftende", "skiftende"]]
 };
 function noiseSet() { return NOISE_SETS[ageChoice < 0 ? "adult" : AGES[ageChoice][1]]; }
+// when the age changes, a noise that does not fit the group becomes the group's nearest one (never silently "ingen")
+function fitNoiseToAge() { if (test.noise == "ingen" || noiseSet().some(n => n[0] == test.noise)) return; test.noise = noiseSet()[1][0]; }
 // the level of every file right now, for the chosen noise
 function noiseTargets() {
   if (test.noise == "blandet") return { trafik: 0.6, snak: 0.7 };
@@ -812,7 +814,7 @@ function handle(v) {
     if (k == "music") musicOn = !musicOn;
     return;
   }
-  if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); if (!noiseSet().some(n => n[0] == test.noise)) test.noise = "ingen"; answers = {}; enter("sms"); return; }
+  if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); fitNoiseToAge(); answers = {}; enter("sms"); return; }
   if (state == "sms" && v == "open-link") { enter("intro"); startAmbience(); return; }
   if (v == "home") { enter("home"); return; }
   if (v.startsWith("go:")) {
@@ -861,7 +863,7 @@ function handle(v) {
 function handlePanel(v) {
   if (v == "close") { panelOpen = false; return; }
   if (v == "none") return;
-  if (v.startsWith("age:")) { ageChoice = int(v.slice(4)); if (!noiseSet().some(n => n[0] == test.noise)) test.noise = "ingen"; }
+  if (v.startsWith("age:")) { ageChoice = int(v.slice(4)); fitNoiseToAge(); }
   if (v.startsWith("noise:")) test.noise = v.slice(6);
   if (v.startsWith("wait:")) test.waitMin = int(v.slice(5));
   if (v.startsWith("status:")) test.status = v.slice(7);
