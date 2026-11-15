@@ -576,12 +576,12 @@ function sceneGeometry(top, bottom) {
   let span = bottom - top;
   let s = min(width / 390, 1.25), ox = (width - 390 * s) / 2;
   const X = x => ox + x * s;
-  let P0 = [X(120), bottom + 6], P1 = [X(372), bottom - span*0.28], P2 = [X(4), top + span*0.42], P3 = [X(176), top + 112];
+  let P0 = [X(110), bottom + 70], P1 = [X(380), bottom - span*0.30], P2 = [X(4), top + span*0.42], P3 = [X(176), top + 112];
   const B = t => { let u = 1-t; return [u*u*u*P0[0]+3*u*u*t*P1[0]+3*u*t*t*P2[0]+t*t*t*P3[0], u*u*u*P0[1]+3*u*u*t*P1[1]+3*u*t*t*P2[1]+t*t*t*P3[1]]; };
   const D = t => { let u = 1-t; return [3*u*u*(P1[0]-P0[0])+6*u*t*(P2[0]-P1[0])+3*t*t*(P3[0]-P2[0]), 3*u*u*(P1[1]-P0[1])+6*u*t*(P2[1]-P1[1])+3*t*t*(P3[1]-P2[1])]; };
   let N = 60, L = [], R = [];
   for (let i = 0; i <= N; i++) { let t = i/N, [x,y] = B(t), [dx,dy] = D(t), len = Math.hypot(dx,dy) || 1, nx = -dy/len, ny = dx/len, w = (38*(1-t) + 11) * s; L.push([x+nx*w/2, y+ny*w/2]); R.push([x-nx*w/2, y-ny*w/2]); }
-  return { B, L, R, N, s, P3, hx: P3[0] + 2, hy: P3[1] - 10 };
+  return { B, L, R, N, s, P3, hx: P3[0] + 12.65 * s * 1.15, hy: P3[1] - 10 };
 }
 function pathPoly(g, L, R, dx, dy) { g.beginShape(); for (let p of L) g.vertex(p[0]+dx, p[1]+dy); for (let p of R.slice().reverse()) g.vertex(p[0]+dx, p[1]+dy); g.endShape(CLOSE); }
 
@@ -590,10 +590,9 @@ function paintScene(g, top, bottom) {
   let S = sceneGeometry(top, bottom); SCENE = S;
   let { B, L, R, s, hx, hy } = S;
   g.noStroke();
-  // the terrace the hospital stands on, and the forecourt where the path ends
-  g.fill(0, 25, 10, 26); g.ellipse(hx + 2, hy + 18, 200 * s, 56 * s);
-  g.fill(night ? "rgba(90,150,120,0.18)" : "rgba(220,245,200,0.28)"); g.ellipse(hx, hy + 12, 190 * s, 50 * s);
-  g.fill(c.path); g.ellipse(hx - 6 * s, hy + 18, 86 * s, 26 * s);
+  // a soft shadow on the lawn under and to the left of the building (light from the top right)
+  g.fill(0, 25, 10, 22); g.ellipse(hx - 14 * s, hy + 12, 170 * s, 44 * s);
+  g.fill(0, 25, 10, 22); g.ellipse(hx - 6 * s, hy + 8, 120 * s, 30 * s);
   // the path: two soft shadows, body, a light centre, edges, pebbles
   g.fill(0, 0, 0, 16); pathPoly(g, L, R, 0, 9);
   g.fill(0, 0, 0, 30); pathPoly(g, L, R, 0, 4);
@@ -652,8 +651,16 @@ function drawLandscape(top, bottom, figT, pathAlpha, walking, breath) {
 function hospital(g, hx, hy, s) {
   g.push(); g.translate(hx, hy); g.scale(s);
   g.noStroke();
-  // cast shadow (light from the top right) and the contact shadow along both bottom edges
-  g.fill(0, 20, 10, 45); g.ellipse(-14, 8, 120, 26);
+  let c = col();
+  // the ground around the building: a worn lawn patch, the building's cast shadow (light from the top right)
+  for (let [rx, ry, al] of [[150, 46, 14], [120, 36, 16], [90, 26, 18]]) { g.fill(0, 25, 10, al); g.ellipse(-8, 6, rx, ry); }
+  for (let [o, al] of [[0, 34], [5, 20], [10, 10]]) { g.fill(0, 20, 10, al); g.beginShape(); g.vertex(-42, -2); g.vertex(18, 1); g.vertex(42, -13); g.vertex(30 - o, 14 + o); g.vertex(-20 - o, 18 + o); g.vertex(-86 - o*1.6, 16 + o); g.endShape(CLOSE); }
+  // the forecourt in front of the entrance, in the same perspective as the path (narrow at the facade, wide towards us)
+  g.fill(c.path); g.beginShape(); g.vertex(-46, 0); g.vertex(16, 0); g.vertex(26, 13); g.vertex(-58, 13); g.endShape(CLOSE);
+  g.fill(c.pathEdge); g.quad(-58, 12, 26, 12, 26, 14, -58, 14);
+  g.fill(255, 255, 240, night ? 8 : 45); g.quad(-45, 0.5, 15, 0.5, 15, 2.5, -45, 2.5);
+  // contact shadow right under the walls
+  g.fill(0, 15, 8, 70); g.quad(-42, -1, 18, -1, 18, 2, -42, 2); g.quad(18, -1, 42, -15, 42, -12, 18, 2);
   for (let [o, al] of [[7, 18], [4, 30], [1.5, 60]]) { g.fill(0, 15, 8, al); g.beginShape(); g.vertex(-42, 0); g.vertex(18, 0); g.vertex(42, -14); g.vertex(42 + o, -14 + o*0.6); g.vertex(18 + o, o); g.vertex(-42 - o*0.4, o); g.endShape(CLOSE); }
   g.fill(night ? "#8F8B7C" : "#B9C2BF"); g.quad(-42, -3, 18, -3, 18, 1, -42, 1);                // plinth
   g.fill(night ? "#9E9A8A" : "#A9B3B0"); g.quad(18, -3, 42, -17, 42, -13, 18, 1);
@@ -679,9 +686,11 @@ function hospital(g, hx, hy, s) {
   g.fill("#D8363C"); g.rect(-12.5, -36, 3, 8, 0.5); g.rect(-15, -33.5, 8, 3, 0.5);
   if (night) { g.fill(216, 54, 60, 40); g.circle(-11, -32, 22); }
   g.pop();
-  // hedges at the foot of the building
-  for (let i = 0; i < 4; i++) bush(g, hx + (-36 + i * 8) * s, hy + 3 * s, 7 * s);
-  for (let i = 0; i < 3; i++) bush(g, hx + (6 + i * 8) * s, hy + 3 * s, 7 * s);
+  // hedges hide the seams: at the front corners and along the forecourt edge
+  bush(g, hx - 46 * s, hy + 2 * s, 7.5 * s); bush(g, hx - 38 * s, hy + 4 * s, 6 * s);
+  bush(g, hx + 44 * s, hy - 10 * s, 7 * s); bush(g, hx + 36 * s, hy - 2 * s, 6 * s);
+  for (let i = 0; i < 3; i++) bush(g, hx + (-62 + i * 9) * s, hy + 16 * s, 6 * s);
+  for (let i = 0; i < 2; i++) bush(g, hx + (22 + i * 9) * s, hy + 16 * s, 6 * s);
 }
 function bush(g, x, y, r) {
   let light = night ? "#245244" : "#3E8A5C", dark = night ? "#15382E" : "#245F3D";
