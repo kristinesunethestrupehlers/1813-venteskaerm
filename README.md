@@ -21,7 +21,7 @@ Vælg "1813 i dag" under Version. Deltageren får så et almindeligt opkaldsbill
 Tastatur på computer: n = nat/dag, v = stemme, m = musik, t = testlederpanel, mellemrum = spring 30 sekunder frem.
 
 ## Lyd
-- Musik fra Pixabay: "Golden Sunset Piano Music" (clavier-music) og "Radiant Mindfulness" (BreakzStudios). Ventemusikken i kontrolbetingelsen er klaverstykket sendt gennem et telefonfilter.
+- Musik fra Pixabay: "Golden Sunset Piano Music" (clavier-music) og "Radiant Mindfulness" (BreakzStudios). Ventemusikken i kontrolbetingelsen er Vivaldis "Forår" (The Modena Chamber Orchestra, public domain, Wikimedia Commons) sendt gennem et telefonfilter, som generisk ventemusik.
 - Fjernstyring: MQTT.js (MIT) i `libraries/mqtt.min.js`.
 - Støj til testen fra Wikimedia Commons, klippet til 60 sekunder, normaliseret og gemt uden ID3-mærkat (iPhone afkoder ellers ikke filen). Valget følger alderen: 0 til 3 måneder = babygråd; 4 måneder til 12 år = babygråd eller børn der larmer; 13 år og op = trafik, storm, folk der snakker, blandet eller skiftende.
   - Babygråd: "Crying newborn baby", the_yura, CC0.

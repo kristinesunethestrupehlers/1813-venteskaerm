@@ -101,7 +101,7 @@ function adviceCards() {
 }
 
 // ------------------------------------------------------------ sound
-const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-mindfulness.mp3", hold: "lyd/hold-1813.mp3" };   // hold = today's 1813, piano through a telephone filter
+const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-mindfulness.mp3", hold: "lyd/hold-1813-vivaldi.mp3" };   // hold = today's 1813: Vivaldi through a telephone filter (1813 plays music in the queue; the tune is unknown)
 let musicFiles = {}, noiseFiles = {};
 let musicOn = true, voiceOn = false, soundStarted = false, soundError = "";
 let ringOsc;
@@ -1029,7 +1029,7 @@ function updateSound() {
   let musicLevel = (inCall && musicOn) ? (state == "calm" ? 0.5 : state == "wait" ? 0.45 : 0.3) * duck : 0;
   musicFiles.piano.setVolume(state == "calm" ? 0 : musicLevel, 0.2);
   musicFiles.mindfulness.setVolume(state == "calm" ? musicLevel : 0, 0.2);
-  musicFiles.hold.setVolume(0, 0.2);                                   // her decision 16 Nov: no music in "1813 i dag"
+  musicFiles.hold.setVolume(state == "call" && !answeredAt ? 0.35 * duck : 0, 0.2);   // generic hold music, as 1813 has today
   let ring = (inCall && !musicOn) ? ((millis() % 5000) < 1000 ? 0.08 : 0) : 0;
   ringOsc.amp(ring * duck, 0.05);
   let targets = noiseTargets();
