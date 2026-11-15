@@ -602,6 +602,7 @@ function drawSky(quiet) {
 
 const BUF = new Map();
 function buffer(key, paint) {
+  if (width < 2 || height < 2) return null;              // a tab opened in the background can start with no size
   let k = key + "|" + night + "|" + width + "x" + height;
   if (!BUF.has(k)) {
     if (BUF.size > 8) BUF.clear();
@@ -650,7 +651,7 @@ function hillLayers(top, bottom) {
 }
 function drawHills(top, bottom) {
   let g = buffer("hills:" + top + ":" + bottom, g => { for (let L of hillLayers(top, bottom)) paintHill(g, L.top, L.a1, L.a2, bottom, L.c1, L.c2, L.haze, L.seed); });
-  image(g, 0, 0);
+  if (g) image(g, 0, 0);
 }
 
 // The path and the hospital are designed in a 390 px wide frame and scaled, so the shape holds on an iPad too.
@@ -714,7 +715,7 @@ function drawLandscape(top, bottom, figT, pathAlpha, walking, breath) {
   let { B, L, R, N, s } = S;
   push();
   drawingContext.globalAlpha = pathAlpha;
-  image(g, 0, 0);
+  if (g) image(g, 0, 0);
   // the walked part of the path and the stones
   let k = floor(N * figT);
   if (k > 1) { noStroke(); fill(red(c.walked), green(c.walked), blue(c.walked), 200); beginShape(); for (let p of L.slice(0, k+1)) vertex(p[0], p[1]); for (let p of R.slice(0, k+1).reverse()) vertex(p[0], p[1]); endShape(CLOSE); }
@@ -1101,4 +1102,4 @@ function sunTime(date, rising) {
   return (UT - date.getTimezoneOffset() / 60 + 24) % 24;
 }
 function isNight() { let now = new Date(), up = sunTime(now, true), down = sunTime(now, false); if (up == null || down == null) return false; let h = now.getHours() + now.getMinutes()/60; return h < up || h > down; }
-function windowResized() { resizeCanvas(windowWidth, windowHeight); readInsets(); }
+function windowResized() { resizeCanvas(windowWidth, windowHeight); readInsets(); BUF.clear(); }
