@@ -12,6 +12,9 @@ Bygget i p5.js. Råd og struktur fra akut.dk (Region Hovedstadens Akutberedskab)
 ## Fjernstyring fra en anden telefon
 Åbn `testleder.html` på testlederens telefon (samme mappe som appen, fx .../1813-venteskaerm/testleder.html). Begge telefoner skal være på nettet. Appen og fjernstyringen taler sammen gennem en offentlig MQTT-broker (broker.emqx.io) i et "rum", som standard `gruppe10`. Vil I have jeres eget rum, så åbn begge sider med `?rum=jeresnavn`. Fra fjernstyringen kan man vælge alder, version, støj, ventetid og køstatus, starte testen, springe frem, lade sygeplejersken svare, sende en "ny situation" som pop op (deltageren vælger "Bliv i køen" eller "Læg på og ring 112"), og hente resultaterne som CSV.
 
+## Slutningen: jeres egen stemme
+Læg en lydfil med navnet `lyd/svar-1813.mp3` i mappen (fx "1813, du taler med Mette, hvad kan jeg hjælpe med?"). Findes filen, afspilles den i det øjeblik sygeplejersken "tager telefonen", i begge versioner. Findes den ikke, siger den syntetiske stemme det i stedet.
+
 ## Kontrolbetingelse
 Vælg "1813 i dag" under Version. Deltageren får så et almindeligt opkaldsbillede, ventemusik gennem telefonfilter og beskeden "Du er nummer N i køen. Ved livstruende sygdom eller tilskadekomst, læg på og ring 112" hvert 30. sekund. Samme støj, samme ventetid og samme tre spørgsmål bagefter, så de to versioner kan sammenlignes.
 

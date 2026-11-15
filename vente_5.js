@@ -106,7 +106,8 @@ let musicFiles = {}, noiseFiles = {};
 let musicOn = true, voiceOn = false, soundStarted = false, soundError = "";
 let ringOsc;
 let noiseStarted = {};
-let hornFile = null;            // a real car horn (CC0) for the sudden sounds          // each noise file is started exactly once (p5's isPlaying() is unreliable right after a restart)
+let hornFile = null;            // a real car horn (CC0) for the sudden sounds
+let answerFile = null;          // optional: the group's own recording of the nurse answering (lyd/svar-1813.mp3); spoken text is the fallback          // each noise file is started exactly once (p5's isPlaying() is unreliable right after a restart)
 let speaking = false, speakingUntil = 0, duck = 1;
 let voices = [];
 let currentUtterance = null;
@@ -135,6 +136,7 @@ function setup() {
   if (window.speechSynthesis) { voices = speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); }; }
   for (let k in NOISE_FILES) noiseFiles[k] = loadSound(NOISE_FILES[k], () => {}, e => { soundError = (soundError + " " + k + ": " + String(e && e.message || e)).slice(0, 90); });
   hornFile = loadSound("lyd/event-horn.mp3", () => {}, () => {});
+  answerFile = loadSound("lyd/svar-1813.mp3", () => {}, () => { answerFile = null; });
   connectRemote();
   enter("age");
 }
@@ -153,7 +155,7 @@ function tick() {
   lastTick = millis();
   // the queue ends: the nurse answers
   if (waitStart && !answeredAt && waitRemaining() <= 0 && ["home","flow","confirm","sent","wait","calm","advice","red","call"].includes(state)) {
-    answeredAt = millis(); situation = null; enter("answered"); stopAmbience(); say("Sygeplejersken tager telefonen nu.", true);
+    answeredAt = millis(); situation = null; enter("answered"); stopAmbience(); nurseAnswers();
   }
   // the control condition repeats today's message every 30 s
   if (state == "call" && !answeredAt && millis() - callMsgAt > 30000) { callMsgAt = millis(); say("Velkommen til Akuttelefonen 1813. Du er nummer " + queueNumber() + " i køen. Ved livstruende sygdom eller tilskadekomst: læg på, og ring et, et, to.", true); }
@@ -469,6 +471,11 @@ function drawSituation() {
   night = save;
   noStroke(); fill("#B2321C"); rect(x + 30, y + 196, w - 60, 44, 22); fill("#FFFFFF"); textSize(16); textStyle(BOLD); text("Læg på og ring 112", width/2, y + 218); textStyle(NORMAL);
   buttons.push({ x: x + 30, y: y + 196, w: w - 60, h: 44, value: "sit:112" });
+}
+// the ending: the group's own recording if it exists, otherwise the voice
+function nurseAnswers() {
+  if (answerFile && answerFile.isLoaded()) { try { answerFile.setVolume(1); answerFile.play(); return; } catch (e) {} }
+  say("Sygeplejersken tager telefonen nu.", true);
 }
 function showSituation(text) { situation = { text, at: millis() }; situationChoice = ""; }   // shown, never spoken: the voice is 1813's, not the test leader's
 
