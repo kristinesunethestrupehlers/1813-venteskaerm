@@ -25,7 +25,7 @@ let ageChoice = -1;
 function personLine() { return ageChoice < 0 ? "" : PERSON_NAME + ", " + AGES[ageChoice][0]; }
 // the noise in the headphones depends on who the call is about (her rule 15 Nov):
 //   0 to 3 months: a baby crying · 4 months to 12 years: a baby, or children making noise · 13 and up: traffic, storm, people talking, mixed or changing
-const NOISE_FILES = { baby: "lyd/noise-baby.mp3", "børn": "lyd/noise-children.mp3", trafik: "lyd/noise-traffic.mp3", storm: "lyd/noise-storm.mp3", snak: "lyd/noise-talk.mp3" };
+const NOISE_FILES = { baby: "lyd/noise-baby.mp3", "børn": "lyd/noise-children.mp3", trafik: "lyd/noise-traffic.mp3?v=2", storm: "lyd/noise-storm.mp3?v=3", snak: "lyd/noise-talk.mp3" };   // ?v= so the phone fetches the new mixes
 const NOISE_SETS = {
   infant: [["ingen", "ingen"], ["baby", "babygråd"]],
   child:  [["ingen", "ingen"], ["baby", "babygråd"], ["børn", "børn der larmer"]],
