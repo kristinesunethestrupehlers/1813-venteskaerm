@@ -16,6 +16,7 @@ Bygget i p5.js. Råd og struktur fra akut.dk (Region Hovedstadens Akutberedskab)
 Læg en lydfil med navnet `lyd/svar-1813.mp3` i mappen (fx "1813, du taler med Mette, hvad kan jeg hjælpe med?"). Findes filen, afspilles den i det øjeblik sygeplejersken "tager telefonen", i begge versioner. Findes den ikke, siger den syntetiske stemme det i stedet.
 
 ## Kontrolbetingelse
+Alt er ens i de to betingelser (alder, støj, pludselige lyde, optrapning, ny situation, ventetid, dukke, sygeplejerskens svar, de tre spørgsmål). Det eneste, der skifter, er det, 1813 giver deltageren i ventetiden.
 Vælg "1813 i dag" under Version. Deltageren får så et almindeligt opkaldsbillede, ventemusik gennem telefonfilter og beskeden "Du er nummer N i køen. Ved livstruende sygdom eller tilskadekomst, læg på og ring 112" hvert 30. sekund. Samme støj, samme ventetid og samme tre spørgsmål bagefter, så de to versioner kan sammenlignes.
 
 Tastatur på computer: n = nat/dag, v = stemme, m = musik, t = testlederpanel, mellemrum = spring 30 sekunder frem.

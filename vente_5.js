@@ -1037,7 +1037,7 @@ function updateSound() {
     startNoise(k);                                                   // also catches a file that finished loading after the first tap
     if (!noiseStarted[k]) continue;
     let on = ambienceOn && !answeredAt ? (targets[k] || 0) : 0;
-    noiseFiles[k].setVolume(on, 0.4);
+    noiseFiles[k].setVolume(on * (speaking ? 0.3 : 1), 0.4);          // the noise steps back while 1813's voice speaks, in both versions
   }
 }
 function say(text_, force) {
