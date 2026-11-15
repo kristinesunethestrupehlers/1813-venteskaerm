@@ -965,7 +965,7 @@ function handlePanel(v) {
   if (v.startsWith("escalate:")) test.escalate = v.endsWith("1");
   if (v.startsWith("sit:")) { panelOpen = false; showSituation(situationsForAge()[int(v.slice(4))]); }
   if (v == "csv") { try { navigator.clipboard.writeText(resultsCsv()); } catch (e) {} }
-  if (v == "clear") { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
+  if (v == "clear") { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} remotePublish("results", "", { retain: true }); }
   if (v == "testnoise") { startSound(); let was = ambienceOn; ambienceOn = true; setTimeout(() => { ambienceOn = was; }, 3000); }
   if (v == "start") { panelOpen = false; restart(); }
 }
@@ -999,7 +999,7 @@ function startSound() {
   try {
     userStartAudio();
     let ctx = getAudioContext(); if (ctx && ctx.state != "running") ctx.resume();
-    for (let k in musicFiles) { musicFiles[k].setVolume(0); musicFiles[k].loop(); }
+    for (let k in musicFiles) { silentStart(musicFiles[k]); }
     for (let k in noiseFiles) startNoise(k);
     ringOsc = new p5.Oscillator("sine"); ringOsc.freq(425); ringOsc.amp(0); ringOsc.start();
   } catch (e) { soundError = String(e).slice(0, 60); }
@@ -1007,7 +1007,13 @@ function startSound() {
 let ambienceOn = false;
 function startNoise(k) {
   if (noiseStarted[k] || !soundStarted || !noiseFiles[k].isLoaded()) return;
-  try { noiseFiles[k].setVolume(0); noiseFiles[k].loop(); noiseStarted[k] = true; } catch (e) { soundError = ("start " + k + ": " + e).slice(0, 80); }
+  try { silentStart(noiseFiles[k]); noiseStarted[k] = true; } catch (e) { soundError = ("start " + k + ": " + e).slice(0, 80); }
+}
+// start a loop without the short burst p5.sound gives when the gain is still 1 at the first sample
+function silentStart(f) {
+  try { let g = f.output.gain, now = getAudioContext().currentTime; g.cancelScheduledValues(now); g.setValueAtTime(0, now); g.value = 0; } catch (e) {}
+  f.setVolume(0); f.loop();
+  try { let g = f.output.gain, now = getAudioContext().currentTime; g.cancelScheduledValues(now); g.setValueAtTime(0, now); } catch (e) {}
 }
 function startAmbience() {
   if (!soundStarted) return;
@@ -1023,7 +1029,7 @@ function updateSound() {
   let musicLevel = (inCall && musicOn) ? (state == "calm" ? 0.5 : state == "wait" ? 0.45 : 0.3) * duck : 0;
   musicFiles.piano.setVolume(state == "calm" ? 0 : musicLevel, 0.2);
   musicFiles.mindfulness.setVolume(state == "calm" ? musicLevel : 0, 0.2);
-  musicFiles.hold.setVolume(state == "call" && !answeredAt ? 0.4 * duck : 0, 0.2);
+  musicFiles.hold.setVolume(0, 0.2);                                   // her decision 16 Nov: no music in "1813 i dag"
   let ring = (inCall && !musicOn) ? ((millis() % 5000) < 1000 ? 0.08 : 0) : 0;
   ringOsc.amp(ring * duck, 0.05);
   let targets = noiseTargets();
@@ -1096,7 +1102,7 @@ function handleRemote(c) {
   if (typeof c.voice == "boolean") voiceOn = c.voice;
   if (typeof c.music == "boolean") musicOn = c.music;
   if (c.event) playEvent(c.event);
-  if (c.clear) { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
+  if (c.clear) { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} remotePublish("results", "", { retain: true }); }
   if (c.csv) remotePublish("results", resultsCsv());
 }
 
