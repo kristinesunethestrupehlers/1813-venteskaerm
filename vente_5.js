@@ -23,8 +23,21 @@ const PERSON_NAME = "Alex";
 const AGES = [["0 til 3 måneder", "infant"], ["4 måneder til 12 år", "child"], ["13 år og op", "adult"]];   // akut.dk's own groups
 let ageChoice = -1;
 function personLine() { return ageChoice < 0 ? "" : PERSON_NAME + ", " + AGES[ageChoice][0]; }
-const NOISES = ["ingen", "baby", "trafik", "storm", "børn"];
-const NOISE_FILES = { baby: "lyd/noise-baby.mp3", trafik: "lyd/noise-traffic.mp3", storm: "lyd/noise-storm.mp3", "børn": "lyd/noise-children.mp3" };
+// the noise in the headphones depends on who the call is about (her rule 15 Nov):
+//   0 to 3 months: a baby crying · 4 months to 12 years: a baby, or children making noise · 13 and up: traffic, storm, people talking, mixed or changing
+const NOISE_FILES = { baby: "lyd/noise-baby.mp3", "børn": "lyd/noise-children.mp3", trafik: "lyd/noise-traffic.mp3", storm: "lyd/noise-storm.mp3", snak: "lyd/noise-talk.mp3" };
+const NOISE_SETS = {
+  infant: [["ingen", "ingen"], ["baby", "babygråd"]],
+  child:  [["ingen", "ingen"], ["baby", "babygråd"], ["børn", "børn der larmer"]],
+  adult:  [["ingen", "ingen"], ["trafik", "trafik"], ["storm", "storm"], ["snak", "folk der snakker"], ["blandet", "blandet"], ["skiftende", "skiftende"]]
+};
+function noiseSet() { return NOISE_SETS[ageChoice < 0 ? "adult" : AGES[ageChoice][1]]; }
+// the level of every file right now, for the chosen noise
+function noiseTargets() {
+  if (test.noise == "blandet") return { trafik: 0.6, snak: 0.7 };
+  if (test.noise == "skiftende") { let k = ["trafik", "snak", "storm"][floor(millis() / 20000) % 3]; return { [k]: 0.9 }; }
+  return { [test.noise]: 0.9 };
+}
 let test = { noise: "ingen", waitMin: 3, status: "stones", startedAt: 0 };
 let panelOpen = false;
 let titleTaps = [];
@@ -738,11 +751,12 @@ function drawPanel() {
   textStyle(NORMAL); textSize(12); fill("#5E7A68");
   let yy = y + 50;
   text("Alder (vælges på startskærmen)", width/2, yy); yy += 14;
-  for (let i = 0; i < AGES.length; i++) panelChoice(x + 12 + (i % 3) * ((w-24)/3), yy + floor(i/3) * 30, (w-24)/3 - 4, 26, AGES[i][0], "p:age:" + i, ageChoice == i, 11);
-  yy += 70;
-  text("Støj i høretelefonerne", width/2, yy); yy += 14;
-  for (let i = 0; i < NOISES.length; i++) panelChoice(x + 12 + i * ((w-24)/5), yy, (w-24)/5 - 4, 26, NOISES[i], "p:noise:" + NOISES[i], test.noise == NOISES[i], 11);
-  yy += 40; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
+  for (let i = 0; i < AGES.length; i++) panelChoice(x + 12 + i * ((w-24)/3), yy, (w-24)/3 - 4, 26, AGES[i][0], "p:age:" + i, ageChoice == i, 11);
+  yy += 40;
+  text("Støj i høretelefonerne (følger alderen)", width/2, yy); yy += 14;
+  let ns = noiseSet(), per = ns.length > 3 ? 3 : ns.length;
+  for (let i = 0; i < ns.length; i++) panelChoice(x + 12 + (i % per) * ((w-24)/per), yy + floor(i/per) * 30, (w-24)/per - 4, 26, ns[i][1], "p:noise:" + ns[i][0], test.noise == ns[i][0], 11);
+  yy += ns.length > 3 ? 70 : 40; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
   [2,3,4,5,6].forEach((m,i) => panelChoice(x + 12 + i * ((w-24)/5), yy, (w-24)/5 - 4, 26, m + " min", "p:wait:" + m, test.waitMin == m, 11));
   yy += 40; text("Køstatus i fanerne", width/2, yy); yy += 14;
   [["stones","Sten"],["bar","Bar"],["figure","Figur"]].forEach((s,i) => panelChoice(x + 12 + i * ((w-24)/3), yy, (w-24)/3 - 4, 26, s[1], "p:status:" + s[0], test.status == s[0], 11));
@@ -784,6 +798,7 @@ function tap(mx, my) {
   if (millis() - lastTap < 150) return;
   lastTap = millis();
   startSound();
+  try { let ctx = getAudioContext(); if (ctx && ctx.state != "running") ctx.resume(); } catch (e) {}
   for (let b of buttons) if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) { handle(b.value); return; }
 }
 function handle(v) {
@@ -796,7 +811,7 @@ function handle(v) {
     if (k == "music") musicOn = !musicOn;
     return;
   }
-  if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); answers = {}; enter("sms"); return; }
+  if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); if (!noiseSet().some(n => n[0] == test.noise)) test.noise = "ingen"; answers = {}; enter("sms"); return; }
   if (state == "sms" && v == "open-link") { enter("intro"); startAmbience(); return; }
   if (v == "home") { enter("home"); return; }
   if (v.startsWith("go:")) {
@@ -845,13 +860,13 @@ function handle(v) {
 function handlePanel(v) {
   if (v == "close") { panelOpen = false; return; }
   if (v == "none") return;
-  if (v.startsWith("age:")) ageChoice = int(v.slice(4));
+  if (v.startsWith("age:")) { ageChoice = int(v.slice(4)); if (!noiseSet().some(n => n[0] == test.noise)) test.noise = "ingen"; }
   if (v.startsWith("noise:")) test.noise = v.slice(6);
   if (v.startsWith("wait:")) test.waitMin = int(v.slice(5));
   if (v.startsWith("status:")) test.status = v.slice(7);
   if (v == "csv") { try { navigator.clipboard.writeText(resultsCsv()); } catch (e) {} }
   if (v == "clear") { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
-  if (v == "testnoise") { startSound(); if (test.noise != "ingen" && noiseFiles[test.noise]) { let f = noiseFiles[test.noise]; if (!f.isPlaying()) f.loop(); f.setVolume(0.9, 0.3); setTimeout(() => { if (!ambienceOn) f.setVolume(0, 0.5); }, 3000); } }
+  if (v == "testnoise") { startSound(); let was = ambienceOn; ambienceOn = true; setTimeout(() => { ambienceOn = was; }, 3000); }
   if (v == "start") { panelOpen = false; restart(); }
 }
 function restart() {
@@ -900,7 +915,14 @@ function updateSound(breath) {
   musicFiles.mindfulness.setVolume(state == "calm" ? musicLevel : 0, 0.2);
   let ring = (inCall && !musicOn) ? ((millis() % 5000) < 1000 ? 0.08 : 0) : 0;
   ringOsc.amp(ring * duck, 0.05);
-  for (let k in noiseFiles) { let on = ambienceOn && test.noise == k && !answeredAt; noiseFiles[k].setVolume(on ? 0.9 : 0, 0.4); }
+  let targets = noiseTargets();
+  for (let k in noiseFiles) {
+    let f = noiseFiles[k];
+    if (!f.isLoaded()) continue;
+    if (!f.isPlaying()) { f.setVolume(0); f.loop(); }                 // a file that finished loading after the first tap
+    let on = ambienceOn && !answeredAt ? (targets[k] || 0) : 0;
+    f.setVolume(on, 1.2);
+  }
 }
 function say(text_) {
   if (!voiceOn || !window.speechSynthesis) return;

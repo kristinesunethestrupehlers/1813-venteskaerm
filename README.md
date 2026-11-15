@@ -13,8 +13,9 @@ Tastatur på computer: n = nat/dag, v = stemme, m = musik, t = testlederpanel, m
 
 ## Lyd
 - Musik fra Pixabay: "Golden Sunset Piano Music" (clavier-music) og "Radiant Mindfulness" (BreakzStudios).
-- Støj til testen fra Wikimedia Commons, klippet til 60 sekunder og normaliseret:
+- Støj til testen fra Wikimedia Commons, klippet til 60 sekunder, normaliseret og gemt uden ID3-mærkat (iPhone afkoder ellers ikke filen). Valget følger alderen: 0 til 3 måneder = babygråd; 4 måneder til 12 år = babygråd eller børn der larmer; 13 år og op = trafik, storm, folk der snakker, blandet eller skiftende.
   - Babygråd: "Crying newborn baby", the_yura, CC0.
+  - Børn der larmer: "Ambient sound children playing in a park 2026-05-19", Schlurcher, CC BY-SA 4.0.
   - Trafik: "Sunday in the city street noise1", cori, public domain.
   - Storm: "Summer thunderstorm in the woods", Serg Childed, CC BY-SA 4.0.
-  - Børn der leger: "Ambient sound children playing in a park 2026-05-19", Schlurcher, CC BY-SA 4.0.
+  - Folk der snakker: "Restaurant ambience", stephan, public domain.
