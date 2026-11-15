@@ -36,11 +36,19 @@ function noiseSet() { return NOISE_SETS[ageChoice < 0 ? "adult" : AGES[ageChoice
 function fitNoiseToAge() { if (noiseSet().some(n => n[0] == test.noise) && !(test.noise == "ingen" && !test.noiseChosen)) return; test.noise = noiseSet()[1][0]; }
 // the level of every file right now, for the chosen noise
 function noiseTargets() {
-  if (test.noise == "blandet") return { trafik: 0.85, snak: 0.85 };
-  if (test.noise == "skiftende") { let k = ["trafik", "snak", "storm"][floor(millis() / 20000) % 3]; return { [k]: 1 }; }
-  return { [test.noise]: 1 };
+  let e = test.escalate ? 0.55 + 0.45 * progress() : 1;              // optional, mild: from about half to full over the wait
+  if (test.noise == "blandet") return { trafik: 0.85 * e, snak: 0.85 * e };
+  if (test.noise == "skiftende") { let k = ["trafik", "snak", "storm"][floor(millis() / 20000) % 3]; return { [k]: e }; }
+  return { [test.noise]: e };
 }
-let test = { noise: "ingen", noiseChosen: false, waitMin: 3, status: "stones", startedAt: 0 };   // noiseChosen: the test leader picked it herself ("ingen" then stays)
+let test = { noise: "ingen", noiseChosen: false, waitMin: 3, status: "stones", startedAt: 0, mode: "app", events: false, escalate: false };
+// mode: "app" = the venteunivers, "1813" = the control condition (today's 1813: hold music and the looped message, nothing else)
+// events: sudden sounds now and then · escalate: the noise grows over the wait · noiseChosen: the test leader picked it herself
+const SITUATIONS = { infant: ["Barnet er blevet slapt og svært at få kontakt til", "Barnet kaster nu op"], child: ["Barnet kaster nu op", "Feberen er steget til 40"], adult: ["Smerterne er blevet værre", "Du er begyndt at kaste op"] };
+function situationsForAge() { return SITUATIONS[ageChoice < 0 ? "adult" : AGES[ageChoice][1]]; }
+let situation = null, situationChoice = "", hungUp = false;
+let eventsPlayed = 0, nextEvent = 0;
+let callMsgAt = 0;
 let panelOpen = false;
 let titleTaps = [];
 
@@ -92,7 +100,7 @@ function adviceCards() {
 }
 
 // ------------------------------------------------------------ sound
-const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-mindfulness.mp3" };
+const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-mindfulness.mp3", hold: "lyd/hold-1813.mp3" };   // hold = today's 1813, piano through a telephone filter
 let musicFiles = {}, noiseFiles = {};
 let musicOn = true, voiceOn = false, soundStarted = false, soundError = "";
 let ringOsc;
@@ -114,6 +122,7 @@ function col() { return night ? C.night : C.day; }
 function preload() {
   musicFiles.piano = loadSound(MUSIC.piano);
   musicFiles.mindfulness = loadSound(MUSIC.mindfulness);
+  musicFiles.hold = loadSound(MUSIC.hold);
 }
 
 function setup() {
@@ -123,6 +132,7 @@ function setup() {
   night = isNight();
   if (window.speechSynthesis) { voices = speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); }; }
   for (let k in NOISE_FILES) noiseFiles[k] = loadSound(NOISE_FILES[k], () => {}, e => { soundError = (soundError + " " + k + ": " + String(e && e.message || e)).slice(0, 90); });
+  connectRemote();
   enter("age");
 }
 function readInsets() {
@@ -140,9 +150,14 @@ function draw() {
   let breath = (sin(frameCount * 0.013) + 1) / 2;
 
   // the queue ends: the nurse answers
-  if (waitStart && !answeredAt && waitRemaining() <= 0 && ["home","flow","confirm","sent","wait","calm","advice","red"].includes(state)) {
-    answeredAt = millis(); enter("answered"); stopAmbience(); say("Sygeplejersken tager telefonen nu.");
+  if (waitStart && !answeredAt && waitRemaining() <= 0 && ["home","flow","confirm","sent","wait","calm","advice","red","call"].includes(state)) {
+    answeredAt = millis(); situation = null; enter("answered"); stopAmbience(); say("Sygeplejersken tager telefonen nu.", true);
   }
+  // the control condition repeats today's message every 30 s
+  if (state == "call" && !answeredAt && millis() - callMsgAt > 30000) { callMsgAt = millis(); say("Velkommen til Akuttelefonen 1813. Du er nummer " + queueNumber() + " i køen. Ved livstruende sygdom eller tilskadekomst: læg på, og ring et, et, to.", true); }
+  // sudden sounds, when the test leader wants them
+  if (test.events && ambienceOn && !answeredAt && soundStarted) { if (!nextEvent) nextEvent = millis() + random(15000, 30000); else if (millis() > nextEvent) { playEvent(random(["phone", "doorbell", "horn"])); eventsPlayed++; nextEvent = millis() + random(20000, 40000); } }
+  publishState();
   // the voice follows the queue
   if (waitStart && !answeredAt && voiceOn && !["flow","confirm","sms","intro","survey"].includes(state) && queueNumber() != lastSpokenNumber) {
     lastSpokenNumber = queueNumber(); say(queueSentence());
@@ -162,7 +177,9 @@ function draw() {
   else if (state == "answered") drawAnswered();
   else if (state == "survey")   drawSurvey();
   else if (state == "done")     drawDone();
+  else if (state == "call")     drawCall();
 
+  if (situation && !answeredAt) drawSituation();
   if (panelOpen) drawPanel();
   updateSound(breath);
 }
@@ -363,8 +380,8 @@ function drawAnswered() {
   noStroke(); fill(c.accent); circle(width/2, insetTop + 230, 90);
   fill("#FFFFFF"); circle(width/2 - 14, insetTop + 222, 6); circle(width/2 + 14, insetTop + 222, 6);
   noFill(); stroke("#FFFFFF"); strokeWeight(4); arc(width/2, insetTop + 236, 36, 22, 0, PI); noStroke();
-  fill(c.ink); textSize(24); textLeading(30); textStyle(BOLD); text("Sygeplejersken tager telefonen", width*0.1, insetTop + 300, width*0.8, 70);
-  textStyle(NORMAL); fill(c.soft); textSize(14); text("Du ventede " + nf(floor(waitTotalMs()/60000),1) + " min.", width/2, insetTop + 380);
+  fill(c.ink); textSize(24); textLeading(30); textStyle(BOLD); text(hungUp ? "Du lagde på og ringede 112" : "Sygeplejersken tager telefonen", width*0.1, insetTop + 300, width*0.8, 70);
+  textStyle(NORMAL); fill(c.soft); textSize(14); text("Du ventede " + nf(round((answeredAt - waitStart)/60000 * 10) / 10, 1, 1).replace(".", ",") + " min.", width/2, insetTop + 380);
   primaryButton(width/2, insetTop + 440, min(width*0.6, 280), 52, "Videre", "to-survey");
 }
 
@@ -399,6 +416,47 @@ function drawDone() {
   textStyle(NORMAL); fill(c.soft); textSize(15); text("Dine svar er gemt til testlederen.", width/2, insetTop + 256);
   primaryButton(width/2, insetTop + 330, min(width*0.6, 280), 52, "Ny test", "restart");
 }
+
+// the control condition: a plain phone call, as 1813 is today
+function drawCall() {
+  background("#1C1C1E");
+  noStroke(); fill("#FFFFFF"); textSize(34); textStyle(BOLD); text("1813", width/2, insetTop + 110);
+  textStyle(NORMAL); fill("#AEAEB2"); textSize(16); text("Akuttelefonen", width/2, insetTop + 146);
+  let sec = waitStart ? floor((millis() - waitStart) / 1000) : 0;
+  fill("#AEAEB2"); textSize(18); text(nf(floor(sec/60), 2) + ":" + nf(sec % 60, 2), width/2, insetTop + 176);
+  let labels = ["lydløs", "tastatur", "højttaler", "tilføj", "FaceTime", "kontakter"];
+  for (let i = 0; i < 6; i++) {
+    let cx = width/2 + ((i % 3) - 1) * 100, cy = insetTop + 300 + floor(i/3) * 110;
+    fill("#3A3A3C"); circle(cx, cy, 74); fill("#AEAEB2"); textSize(12); text(labels[i], cx, cy + 56);
+    stroke("#FFFFFF"); strokeWeight(2); noFill();
+    if (i == 0) { line(cx-8, cy-10, cx+8, cy+10); rect(cx-5, cy-12, 10, 16, 5); }
+    if (i == 1) { for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) point(cx-8+c*8, cy-8+r*8); }
+    if (i == 2) { beginShape(); vertex(cx-10,cy-4); vertex(cx-5,cy-4); vertex(cx+1,cy-10); vertex(cx+1,cy+10); vertex(cx-5,cy+4); vertex(cx-10,cy+4); endShape(CLOSE); arc(cx+5, cy, 12, 14, -PI/3, PI/3); }
+    if (i == 3) { line(cx-10, cy, cx+10, cy); line(cx, cy-10, cx, cy+10); }
+    if (i == 4) { rect(cx-12, cy-7, 16, 14, 3); triangle(cx+4, cy, cx+12, cy-6, cx+12, cy+6); }
+    if (i == 5) { circle(cx, cy-4, 10); arc(cx, cy+12, 22, 16, PI, TWO_PI); }
+    noStroke();
+  }
+  fill("#FF3B30"); circle(width/2, height - insetBottom - 110, 74);
+  stroke("#FFFFFF"); strokeWeight(3); noFill(); arc(width/2, height - insetBottom - 104, 26, 14, PI + 0.3, TWO_PI - 0.3); noStroke();
+  buttons.push({ x: width/2 - 60, y: insetTop + 86, w: 120, h: 48, value: "title-tap" });
+}
+// a change in the situation, sent by the test leader: the participant has to decide
+function drawSituation() {
+  noStroke(); fill(0, 0, 0, 120); rect(0, 0, width, height);
+  let w = min(width - 48, 360), x = (width - w)/2, h = 250, y = height/2 - h/2 - 40;
+  fill("#FFFBF3"); rect(x, y, w, h, 22);
+  fill("#B2321C"); textSize(12); textStyle(BOLD); text("NY SITUATION", width/2, y + 28);
+  fill("#1E3A2C"); textSize(22); textLeading(28); text(situation.text, x + 24, y + 48, w - 48, 90);
+  textStyle(NORMAL);
+  buttons = [];
+  let save = night; night = false;                     // the buttons use the day palette on the cream card
+  choiceButton(width/2, y + 160, w - 60, 48, "Bliv i køen", "sit:stay", false, 16);
+  night = save;
+  noStroke(); fill("#B2321C"); rect(x + 30, y + 196, w - 60, 44, 22); fill("#FFFFFF"); textSize(16); textStyle(BOLD); text("Læg på og ring 112", width/2, y + 218); textStyle(NORMAL);
+  buttons.push({ x: x + 30, y: y + 196, w: w - 60, h: 44, value: "sit:112" });
+}
+function showSituation(text) { situation = { text, at: millis() }; situationChoice = ""; say(text, true); }
 
 // ============================================================ shared pieces
 function drawTopBar(title, back) {
@@ -754,31 +812,38 @@ function drawPanel() {
   let yy = y + 50;
   text("Alder (vælges på startskærmen)", width/2, yy); yy += 14;
   for (let i = 0; i < AGES.length; i++) panelChoice(x + 12 + i * ((w-24)/3), yy, (w-24)/3 - 4, 26, AGES[i][0], "p:age:" + i, ageChoice == i, 11);
-  yy += 40;
+  yy += 34;
   text("Støj i høretelefonerne (følger alderen)", width/2, yy); yy += 14;
   let ns = noiseSet(), per = ns.length > 3 ? 3 : ns.length;
   for (let i = 0; i < ns.length; i++) panelChoice(x + 12 + (i % per) * ((w-24)/per), yy + floor(i/per) * 30, (w-24)/per - 4, 26, ns[i][1], "p:noise:" + ns[i][0], test.noise == ns[i][0], 11);
-  yy += ns.length > 3 ? 70 : 40; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
+  yy += ns.length > 3 ? 64 : 34; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
   [2,3,4,5,6].forEach((m,i) => panelChoice(x + 12 + i * ((w-24)/5), yy, (w-24)/5 - 4, 26, m + " min", "p:wait:" + m, test.waitMin == m, 11));
-  yy += 40; text("Køstatus i fanerne", width/2, yy); yy += 14;
+  yy += 34; text("Version", width/2, yy); yy += 14;
+  [["app", "Venteunivers"], ["1813", "1813 i dag (kontrol)"]].forEach((m, i) => panelChoice(x + 12 + i * ((w-24)/2), yy, (w-24)/2 - 4, 26, m[1], "p:mode:" + m[0], test.mode == m[0], 11));
+  yy += 34; text("Pludselige lyde · optrapning · ny situation", width/2, yy); yy += 14;
+  panelChoice(x + 12, yy, (w-24)/4 - 4, 26, test.events ? "lyde: til" : "lyde: fra", "p:events", test.events, 11);
+  panelChoice(x + 12 + (w-24)/4, yy, (w-24)/4 - 4, 26, test.escalate ? "optrap: til" : "optrap: fra", "p:escalate", test.escalate, 11);
+  situationsForAge().forEach((t, i) => panelChoice(x + 12 + (2 + i) * ((w-24)/4), yy, (w-24)/4 - 4, 26, t.split(" ").slice(0, 3).join(" "), "p:sit:" + i, false, 10));
+  yy += 34; text("Køstatus i fanerne", width/2, yy); yy += 14;
   [["stones","Sten"],["bar","Bar"],["figure","Figur"]].forEach((s,i) => panelChoice(x + 12 + i * ((w-24)/3), yy, (w-24)/3 - 4, 26, s[1], "p:status:" + s[0], test.status == s[0], 11));
-  yy += 44;
+  yy += 36;
   let res = loadResults();
   fill("#5E7A68"); textSize(12); text("Resultater: " + res.length + (res.length ? "  ·  seneste: gæt " + res[res.length-1].estimateMin + " min, reelt " + res[res.length-1].waitMin + " min, ro " + res[res.length-1].calm + ", uro " + res[res.length-1].energy : ""), width/2, yy);
-  yy += 24;
+  yy += 20;
   panelChoice(x + 12, yy, (w-24)/2 - 4, 30, "Kopiér CSV", "p:csv", false, 12);
   panelChoice(x + 12 + (w-24)/2, yy, (w-24)/2 - 4, 30, "Slet resultater", "p:clear", false, 12);
-  yy += 46;
+  yy += 38;
   fill("#2F7A52"); rect(x + 12, yy, w - 24, 44, 22); fill("#FFFFFF"); textSize(15); textStyle(BOLD); text("Start test forfra med disse valg", width/2, yy + 22); textStyle(NORMAL);
   buttons.push({ x: x+12, y: yy, w: w-24, h: 44, value: "p:start" });
-  yy += 60;
+  yy += 52;
   panelChoice(x + 12, yy, w - 24, 30, "Test lyden nu (støj 3 sek.)", "p:testnoise", false, 12);
-  yy += 40;
+  yy += 38;
   fill("#5E7A68"); textSize(10);
   let ctx = typeof getAudioContext == "function" ? getAudioContext() : null;
   let loaded = Object.keys(noiseFiles).map(k => k + (noiseFiles[k].isLoaded() ? (noiseStarted[k] ? "▶" : "✓") : "✗") + (noiseStarted[k] ? nf(noiseFiles[k].output.gain.value, 1, 1) : "")).join(" ");
   text("Lyd: " + (soundStarted ? "startet" : "ikke startet") + " · kontekst: " + (ctx ? ctx.state : "?") + " · valg: " + test.noise + (ambienceOn ? " (til)" : " (fra)") + " · " + loaded + (soundError ? " · fejl: " + soundError : ""), x + 12, yy - 8, w - 24, 44);
-  fill("#5E7A68"); textSize(11); text("Luk: tryk uden for boksen", width/2, y + h - 14);
+  fill("#5E7A68"); textSize(10); text("Fjernstyring: rum \"" + ROOM + "\" · " + (remote.connected ? "forbundet" : "ikke forbundet") + " · åbn testleder.html på en anden telefon", width/2, y + h - 30);
+  textSize(11); text("Luk: tryk uden for boksen", width/2, y + h - 14);
   buttons.push({ x, y, w, h, value: "p:none" });
   buttons.push({ x: 0, y: 0, w: width, h: height, value: "p:close" });
 }
@@ -790,8 +855,8 @@ function panelChoice(x, y, w, h, label, value, selected, size) {
 function loadResults() { try { return JSON.parse(localStorage.getItem("venteunivers-results") || "[]"); } catch (e) { return []; } }
 function saveResult(r) { let a = loadResults(); a.push(r); try { localStorage.setItem("venteunivers-results", JSON.stringify(a)); } catch (e) {} }
 function resultsCsv() {
-  let rows = [["tid","person","stoej","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"]];
-  for (let r of loadResults()) rows.push([r.time, r.scenario, r.noise, r.waitMin, r.estimateMin, r.calm, r.energy, r.flowDone, r.status]);
+  let rows = [["tid","person","version","stoej","lyde","optrapning","situation","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"]];
+  for (let r of loadResults()) rows.push([r.time, r.scenario, r.mode || "app", r.noise, r.events || 0, r.escalate || "nej", r.situation || "", r.waitMin, r.estimateMin, r.calm, r.energy, r.flowDone, r.status]);
   return rows.map(r => r.join(";")).join("\n");
 }
 
@@ -813,7 +878,8 @@ function handle(v) {
     if (k == "music") musicOn = !musicOn;
     return;
   }
-  if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); fitNoiseToAge(); answers = {}; enter("sms"); return; }
+  if (v.startsWith("sit:")) { situationChoice = v == "sit:stay" ? "blev i køen" : "ringede 112"; situation = null; if (v == "sit:112") { hungUp = true; answeredAt = millis(); stopAmbience(); enter("answered"); } return; }
+  if (state == "age" && v.startsWith("age:")) { ageChoice = int(v.slice(4)); fitNoiseToAge(); answers = {}; startTest(); return; }
   if (state == "sms" && v == "open-link") { enter("intro"); return; }
   if (v == "home") { enter("home"); return; }
   if (v.startsWith("go:")) {
@@ -852,7 +918,7 @@ function handle(v) {
     else if (v.startsWith("scale:")) {
       if (survey.step == 1) { survey.calm = int(v.slice(6)); survey.step = 2; }
       else { survey.energy = int(v.slice(6));
-        saveResult({ time: new Date().toISOString().slice(0,16).replace("T"," "), scenario: personLine(), noise: test.noise, waitMin: test.waitMin, estimateMin: survey.estimate, calm: survey.calm, energy: survey.energy, flowDone: flowDone ? "ja" : "nej", status: test.status });
+        saveResult({ time: new Date().toISOString().slice(0,16).replace("T"," "), scenario: personLine(), noise: test.noise, waitMin: round((answeredAt - waitStart)/6000) / 10, estimateMin: survey.estimate, calm: survey.calm, energy: survey.energy, flowDone: flowDone ? "ja" : "nej", status: test.status, mode: test.mode, events: test.events ? eventsPlayed : 0, escalate: test.escalate ? "ja" : "nej", situation: situationChoice });
         enter("done"); }
     }
     return;
@@ -866,14 +932,24 @@ function handlePanel(v) {
   if (v.startsWith("noise:")) { test.noise = v.slice(6); test.noiseChosen = true; }
   if (v.startsWith("wait:")) test.waitMin = int(v.slice(5));
   if (v.startsWith("status:")) test.status = v.slice(7);
+  if (v.startsWith("mode:")) test.mode = v.slice(5);
+  if (v == "events") test.events = !test.events;
+  if (v == "escalate") test.escalate = !test.escalate;
+  if (v.startsWith("sit:")) { panelOpen = false; showSituation(situationsForAge()[int(v.slice(4))]); }
   if (v == "csv") { try { navigator.clipboard.writeText(resultsCsv()); } catch (e) {} }
   if (v == "clear") { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
   if (v == "testnoise") { startSound(); let was = ambienceOn; ambienceOn = true; setTimeout(() => { ambienceOn = was; }, 3000); }
   if (v == "start") { panelOpen = false; restart(); }
 }
+// after the age is known: the venteunivers starts with the SMS, the control condition goes straight into the call
+function startTest() {
+  if (test.mode == "1813") { enter("call"); waitStart = millis(); test.startedAt = millis(); callMsgAt = 0; startAmbience(); }
+  else enter("sms");
+}
 function restart() {
   stopAmbience();
   state = "age"; stateSince = millis(); waitStart = 0; answeredAt = 0; answers = {}; qIndex = 0; flowDone = false; cardIndex = 0; lastSpokenNumber = 0;
+  situation = null; situationChoice = ""; hungUp = false; eventsPlayed = 0; nextEvent = 0; callMsgAt = 0;
   if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
 }
 function mouseReleased() { tap(mouseX, mouseY); }
@@ -915,10 +991,11 @@ function updateSound(breath) {
   if (!soundStarted || !ringOsc) return;
   if (speaking && millis() > speakingUntil && !speechSynthesis.speaking) speaking = false;
   duck = lerp(duck, speaking ? 0.15 : 1, 0.05);
-  let inCall = waitStart && !answeredAt && state != "sms" && state != "intro";
+  let inCall = waitStart && !answeredAt && state != "sms" && state != "intro" && state != "call";
   let musicLevel = (inCall && musicOn) ? (state == "calm" ? 0.5 : state == "wait" ? 0.45 : 0.3) * duck : 0;
   musicFiles.piano.setVolume(state == "calm" ? 0 : musicLevel, 0.2);
   musicFiles.mindfulness.setVolume(state == "calm" ? musicLevel : 0, 0.2);
+  musicFiles.hold.setVolume(state == "call" && !answeredAt ? 0.4 * duck : 0, 0.2);
   let ring = (inCall && !musicOn) ? ((millis() % 5000) < 1000 ? 0.08 : 0) : 0;
   ringOsc.amp(ring * duck, 0.05);
   let targets = noiseTargets();
@@ -929,8 +1006,8 @@ function updateSound(breath) {
     noiseFiles[k].setVolume(on, 0.4);
   }
 }
-function say(text_) {
-  if (!voiceOn || !window.speechSynthesis) return;
+function say(text_, force) {
+  if ((!voiceOn && !force) || !window.speechSynthesis) return;
   let u = new SpeechSynthesisUtterance(text_);
   u.lang = "da-DK"; u.rate = 0.95; u.volume = 1;
   let m = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("da")); if (m.length) u.voice = m[0];
@@ -940,6 +1017,49 @@ function say(text_) {
   if (speechSynthesis.paused) speechSynthesis.resume();
   if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(() => { speechSynthesis.resume(); speechSynthesis.speak(u); }, 120); }
   else speechSynthesis.speak(u);
+}
+
+// sudden sounds, made with oscillators so no extra files are needed
+function tone(type, freq, startMs, durMs, level) {
+  setTimeout(() => { try { let o = new p5.Oscillator(type); o.freq(freq); o.amp(0); o.start(); o.amp(level, 0.02); setTimeout(() => { o.amp(0, 0.08); setTimeout(() => o.stop(), 120); }, durMs); } catch (e) {} }, startMs);
+}
+function playEvent(kind) {
+  if (kind == "phone") { for (let r = 0; r < 3; r++) for (let i = 0; i < 8; i++) tone("triangle", i % 2 ? 1300 : 1000, r * 900 + i * 50, 45, 0.25); }
+  if (kind == "doorbell") { tone("sine", 659, 0, 350, 0.35); tone("sine", 523, 380, 700, 0.35); tone("sine", 1318, 0, 200, 0.08); }
+  if (kind == "horn") { tone("sawtooth", 420, 0, 700, 0.18); tone("sawtooth", 530, 0, 700, 0.14); tone("sawtooth", 420, 900, 400, 0.18); tone("sawtooth", 530, 900, 400, 0.14); }
+}
+
+// ============================================================ remote control from a second phone (MQTT over WebSocket, public broker)
+const ROOM = ((new URLSearchParams(location.search).get("rum")) || "gruppe10").toLowerCase().replace(/[^a-z0-9æøå-]/g, "");
+let remote = { client: null, connected: false, lastState: 0 };
+function connectRemote() {
+  if (typeof mqtt == "undefined") return;
+  try {
+    remote.client = mqtt.connect("wss://broker.emqx.io:8084/mqtt", { clientId: "vu-app-" + Math.random().toString(16).slice(2, 10), keepalive: 30, reconnectPeriod: 4000, clean: true });
+    remote.client.on("connect", () => { remote.connected = true; remote.client.subscribe("venteunivers/" + ROOM + "/cmd"); });
+    remote.client.on("close", () => { remote.connected = false; });
+    remote.client.on("error", () => {});
+    remote.client.on("message", (t, m) => { try { handleRemote(JSON.parse(m.toString())); } catch (e) {} });
+  } catch (e) {}
+}
+function publishState() {
+  if (!remote.connected || millis() - remote.lastState < 1500) return;
+  remote.lastState = millis();
+  let st = { state, person: personLine(), age: ageChoice, nr: queueNumber(), min: minutesLeft(), left: round(waitRemaining() / 1000), running: !!(waitStart && !answeredAt), test, night, voiceOn, musicOn, flowDone, results: loadResults().length, situation: situation ? situation.text : "", choice: situationChoice, sound: soundStarted, t: Date.now() };
+  try { remote.client.publish("venteunivers/" + ROOM + "/state", JSON.stringify(st), { retain: true }); } catch (e) {}
+}
+function handleRemote(c) {
+  if (c.set) { for (let k in c.set) { if (k == "age") { ageChoice = int(c.set.age); fitNoiseToAge(); } else if (k == "noise") { test.noise = c.set.noise; test.noiseChosen = true; } else if (k in test) test[k] = c.set[k]; } }
+  if (c.start) { panelOpen = false; restart(); if (c.start == "now" && ageChoice >= 0) { answers = {}; startTest(); } }
+  if (c.situation) showSituation(String(c.situation).slice(0, 80));
+  if (c.answer && waitStart && !answeredAt) waitStart = millis() - waitTotalMs();
+  if (c.skip && waitStart) waitStart -= c.skip * 1000;
+  if (typeof c.night == "boolean") night = c.night;
+  if (typeof c.voice == "boolean") voiceOn = c.voice;
+  if (typeof c.music == "boolean") musicOn = c.music;
+  if (c.event) playEvent(c.event);
+  if (c.clear) { try { localStorage.removeItem("venteunivers-results"); } catch (e) {} }
+  if (c.csv) { try { remote.client.publish("venteunivers/" + ROOM + "/results", resultsCsv()); } catch (e) {} }
 }
 
 // ============================================================ the sun over Copenhagen

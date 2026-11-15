@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Testleder · 1813 venteunivers</title>
+<script src="libraries/mqtt.min.js"></script>
+<style>
+  :root { --ink:#1E3A2C; --soft:#5E7A68; --accent:#2F7A52; --card:#FFFBF3; --bg:#EEF4EC; --red:#B2321C; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px 16px 48px; font-family: -apple-system, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  h1 { font-size:20px; margin:4px 0 2px; }
+  .sub { color:var(--soft); font-size:13px; margin-bottom:12px; }
+  .box { background:var(--card); border-radius:16px; padding:12px 14px; margin-bottom:12px; box-shadow:0 2px 6px rgba(40,70,50,.12); }
+  .box h2 { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--soft); margin:0 0 8px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; }
+  button { border:0; border-radius:999px; padding:10px 14px; font-size:14px; font-weight:600; background:#E7F3E8; color:var(--ink); }
+  button.on { background:var(--accent); color:#fff; }
+  button.big { width:100%; padding:14px; font-size:16px; background:var(--accent); color:#fff; }
+  button.red { background:var(--red); color:#fff; }
+  button.ghost { background:#fff; border:1px solid #cfdccf; }
+  input[type=text] { width:100%; padding:10px 12px; border-radius:12px; border:1px solid #cfdccf; font-size:15px; }
+  .status { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:14px; }
+  .status b { font-weight:600; }
+  .live { font-size:28px; font-weight:700; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#c33; margin-right:6px; vertical-align:middle; }
+  .dot.ok { background:#2F7A52; }
+  textarea { width:100%; height:120px; font-family:Menlo, monospace; font-size:11px; border-radius:12px; border:1px solid #cfdccf; padding:8px; }
+  .hint { font-size:12px; color:var(--soft); margin-top:6px; }
+</style>
+</head>
+<body>
+<h1>Testleder</h1>
+<div class="sub"><span id="conn" class="dot"></span><span id="conntext">forbinder …</span> · rum <b id="room"></b> <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="changeRoom()">skift</button></div>
+
+<div class="box">
+  <h2>Deltagerens telefon lige nu</h2>
+  <div class="live" id="liveNr">–</div>
+  <div class="status" id="status"><div>Venter på første besked fra appen …</div></div>
+  <div class="hint">Appen skal være åben på deltagerens telefon, og begge skal være på nettet. Tre tryk på "1813" i appen viser også rummet.</div>
+</div>
+
+<div class="box">
+  <h2>Alder (fra kortet)</h2>
+  <div class="row" id="ages"></div>
+</div>
+
+<div class="box">
+  <h2>Version</h2>
+  <div class="row" id="modes"></div>
+</div>
+
+<div class="box">
+  <h2>Støj i høretelefonerne</h2>
+  <div class="row" id="noises"></div>
+  <div class="row" style="margin-top:8px">
+    <button id="events" onclick="toggle('events')">pludselige lyde: fra</button>
+    <button id="escalate" onclick="toggle('escalate')">optrapning: fra</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="ghost" onclick="send({event:'phone'})">telefon ringer nu</button>
+    <button class="ghost" onclick="send({event:'doorbell'})">dørklokke nu</button>
+    <button class="ghost" onclick="send({event:'horn'})">bil dytter nu</button>
+  </div>
+</div>
+
+<div class="box">
+  <h2>Ventetid og køstatus</h2>
+  <div class="row" id="waits"></div>
+  <div class="row" style="margin-top:8px" id="statuses"></div>
+  <div class="row" style="margin-top:8px">
+    <button class="ghost" onclick="send({night:true})">nat</button>
+    <button class="ghost" onclick="send({night:false})">dag</button>
+    <button class="ghost" onclick="send({voice:true})">stemme til</button>
+    <button class="ghost" onclick="send({voice:false})">stemme fra</button>
+  </div>
+</div>
+
+<div class="box">
+  <h2>Start</h2>
+  <button class="big" onclick="send({start:'now'})">Start nu med valgt alder</button>
+  <div style="height:8px"></div>
+  <button class="big" style="background:#5E7A68" onclick="send({start:'age'})">Start forfra, deltageren vælger alder</button>
+  <div class="row" style="margin-top:8px">
+    <button class="ghost" onclick="send({skip:30})">spring 30 sek. frem</button>
+    <button class="ghost" onclick="send({answer:true})">sygeplejersken svarer nu</button>
+  </div>
+</div>
+
+<div class="box">
+  <h2>Ny situation (pop op hos deltageren)</h2>
+  <div class="row" id="sits"></div>
+  <div style="height:8px"></div>
+  <input type="text" id="custom" placeholder="Skriv din egen …">
+  <div style="height:8px"></div>
+  <button class="red" onclick="sendCustom()">Send situationen</button>
+  <div class="hint">Deltageren skal vælge "Bliv i køen" eller "Læg på og ring 112". Valget gemmes i resultaterne.</div>
+</div>
+
+<div class="box">
+  <h2>Resultater</h2>
+  <div class="row">
+    <button onclick="send({csv:true})">Hent CSV fra telefonen</button>
+    <button class="ghost" onclick="copyCsv()">Kopiér</button>
+    <button class="ghost" onclick="if(confirm('Slet alle resultater på deltagerens telefon?')) send({clear:true})">Slet på telefonen</button>
+  </div>
+  <div style="height:8px"></div>
+  <textarea id="csv" readonly placeholder="CSV kommer her, når du henter den."></textarea>
+</div>
+
+<script>
+const AGES = [["0 til 3 måneder","infant"],["4 måneder til 12 år","child"],["13 år og op","adult"]];
+const NOISE_SETS = { infant:[["ingen","ingen"],["baby","babygråd"]], child:[["ingen","ingen"],["baby","babygråd"],["børn","børn der larmer"]], adult:[["ingen","ingen"],["trafik","trafik"],["storm","storm"],["snak","folk der snakker"],["blandet","blandet"],["skiftende","skiftende"]] };
+const SITUATIONS = { infant:["Barnet er blevet slapt og svært at få kontakt til","Barnet kaster nu op"], child:["Barnet kaster nu op","Feberen er steget til 40"], adult:["Smerterne er blevet værre","Du er begyndt at kaste op"] };
+let room = (new URLSearchParams(location.search).get("rum") || localStorage.getItem("vu-room") || "gruppe10").toLowerCase();
+document.getElementById("room").textContent = room;
+let st = { age: -1, test: { noise:"ingen", waitMin:3, status:"stones", mode:"app", events:false, escalate:false } };
+let client = mqtt.connect("wss://broker.emqx.io:8084/mqtt", { clientId: "vu-remote-" + Math.random().toString(16).slice(2,10), keepalive: 30, reconnectPeriod: 4000 });
+client.on("connect", () => { setConn(true); client.subscribe("venteunivers/" + room + "/state"); client.subscribe("venteunivers/" + room + "/results"); });
+client.on("close", () => setConn(false));
+client.on("message", (t, m) => {
+  if (t.endsWith("/results")) { document.getElementById("csv").value = m.toString(); return; }
+  try { st = JSON.parse(m.toString()); render(); } catch (e) {}
+});
+function setConn(ok) { document.getElementById("conn").className = "dot" + (ok ? " ok" : ""); document.getElementById("conntext").textContent = ok ? "forbundet" : "ikke forbundet"; }
+function send(cmd) { client.publish("venteunivers/" + room + "/cmd", JSON.stringify(cmd)); }
+function set(k, v) { send({ set: { [k]: v } }); st.test[k] = v; if (k == "age") st.age = v; render(); }
+function toggle(k) { set(k, !st.test[k]); }
+function sendCustom() { let t = document.getElementById("custom").value.trim(); if (t) send({ situation: t }); }
+function copyCsv() { navigator.clipboard.writeText(document.getElementById("csv").value); }
+function changeRoom() { let r = prompt("Rumkode (samme som ?rum= på appens link):", room); if (r) { localStorage.setItem("vu-room", r.toLowerCase()); location.search = "?rum=" + encodeURIComponent(r.toLowerCase()); } }
+function btn(label, on, fn, cls) { let b = document.createElement("button"); b.textContent = label; if (on) b.className = "on"; if (cls) b.className = cls; b.onclick = fn; return b; }
+function fill(id, items) { let el = document.getElementById(id); el.innerHTML = ""; items.forEach(b => el.appendChild(b)); }
+const STATE_DA = { age:"vælger alder", sms:"sms", intro:"indledning", home:"forside", flow:"spørgsmål", confirm:"bekræft", sent:"sendt", red:"112-skærm", wait:"Din ventetid", calm:"Find ro", advice:"Gode råd", answered:"sygeplejersken svarede", survey:"tre spørgsmål", done:"færdig", call:"1813 i dag (opkald)" };
+function render() {
+  let t = st.test || {}, group = st.age >= 0 ? AGES[st.age][1] : "adult";
+  document.getElementById("liveNr").textContent = st.running ? ("Nr. " + st.nr + " · " + Math.floor(st.left/60) + ":" + String(st.left%60).padStart(2,"0") + " tilbage") : (STATE_DA[st.state] || st.state || "–");
+  let age = (st.t && Date.now() - st.t > 8000) ? " (sidst set for " + Math.round((Date.now()-st.t)/1000) + " s siden)" : "";
+  document.getElementById("status").innerHTML = `<div><b>Skærm:</b> ${STATE_DA[st.state] || st.state || "–"}${age}</div><div><b>Person:</b> ${st.person || "–"}</div><div><b>Version:</b> ${t.mode == "1813" ? "1813 i dag" : "venteunivers"}</div><div><b>Støj:</b> ${t.noise || "–"}${t.events ? " + lyde" : ""}${t.escalate ? " + optrapning" : ""}</div><div><b>Ventetid:</b> ${t.waitMin} min</div><div><b>Lyd startet:</b> ${st.sound ? "ja" : "nej (deltageren skal trykke først)"}</div><div><b>Situation:</b> ${st.situation ? "vises nu" : (st.choice || "–")}</div><div><b>Resultater:</b> ${st.results ?? "–"}</div>`;
+  fill("ages", AGES.map((a, i) => btn(a[0], st.age == i, () => set("age", i))));
+  fill("modes", [["app","Venteunivers"],["1813","1813 i dag (kontrol)"]].map(m => btn(m[1], t.mode == m[0], () => set("mode", m[0]))));
+  fill("noises", NOISE_SETS[group].map(n => btn(n[1], t.noise == n[0], () => set("noise", n[0]))));
+  document.getElementById("events").textContent = "pludselige lyde: " + (t.events ? "til" : "fra"); document.getElementById("events").className = t.events ? "on" : "";
+  document.getElementById("escalate").textContent = "optrapning: " + (t.escalate ? "til" : "fra"); document.getElementById("escalate").className = t.escalate ? "on" : "";
+  fill("waits", [2,3,4,5,6].map(m => btn(m + " min", t.waitMin == m, () => set("waitMin", m))));
+  fill("statuses", [["stones","sten"],["bar","bar"],["figure","figur"]].map(s => btn(s[1], t.status == s[0], () => set("status", s[0]))));
+  fill("sits", SITUATIONS[group].map(s => btn(s, false, () => send({ situation: s }), "red")));
+}
+render();
+</script>
+</body>
+</html>
