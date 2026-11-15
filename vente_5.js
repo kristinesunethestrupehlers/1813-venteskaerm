@@ -94,6 +94,7 @@ const MUSIC = { piano: "lyd/golden-sunset-piano.mp3", mindfulness: "lyd/radiant-
 let musicFiles = {}, noiseFiles = {};
 let musicOn = true, voiceOn = false, soundStarted = false, soundError = "";
 let ringOsc;
+let noiseStarted = {};          // each noise file is started exactly once (p5's isPlaying() is unreliable right after a restart)
 let speaking = false, speakingUntil = 0, duck = 1;
 let voices = [];
 let currentUtterance = null;
@@ -774,8 +775,8 @@ function drawPanel() {
   yy += 40;
   fill("#5E7A68"); textSize(10);
   let ctx = typeof getAudioContext == "function" ? getAudioContext() : null;
-  let loaded = Object.keys(noiseFiles).map(k => k + (noiseFiles[k].isLoaded() ? "✓" : "✗")).join(" ");
-  text("Lyd: " + (soundStarted ? "startet" : "ikke startet") + " · kontekst: " + (ctx ? ctx.state : "?") + " · " + loaded + (soundError ? " · fejl: " + soundError : ""), x + 12, yy - 8, w - 24, 30);
+  let loaded = Object.keys(noiseFiles).map(k => k + (noiseFiles[k].isLoaded() ? (noiseStarted[k] ? "▶" : "✓") : "✗") + (noiseStarted[k] ? nf(noiseFiles[k].output.gain.value, 1, 1) : "")).join(" ");
+  text("Lyd: " + (soundStarted ? "startet" : "ikke startet") + " · kontekst: " + (ctx ? ctx.state : "?") + " · valg: " + test.noise + (ambienceOn ? " (til)" : " (fra)") + " · " + loaded + (soundError ? " · fejl: " + soundError : ""), x + 12, yy - 8, w - 24, 44);
   fill("#5E7A68"); textSize(11); text("Luk: tryk uden for boksen", width/2, y + h - 14);
   buttons.push({ x, y, w, h, value: "p:none" });
   buttons.push({ x: 0, y: 0, w: width, h: height, value: "p:close" });
@@ -894,14 +895,18 @@ function startSound() {
     userStartAudio();
     let ctx = getAudioContext(); if (ctx && ctx.state != "running") ctx.resume();
     for (let k in musicFiles) { musicFiles[k].setVolume(0); musicFiles[k].loop(); }
-    for (let k in noiseFiles) { if (noiseFiles[k].isLoaded()) { noiseFiles[k].setVolume(0); noiseFiles[k].loop(); } }
+    for (let k in noiseFiles) startNoise(k);
     ringOsc = new p5.Oscillator("sine"); ringOsc.freq(425); ringOsc.amp(0); ringOsc.start();
   } catch (e) { soundError = String(e).slice(0, 60); }
 }
 let ambienceOn = false;
+function startNoise(k) {
+  if (noiseStarted[k] || !soundStarted || !noiseFiles[k].isLoaded()) return;
+  try { noiseFiles[k].setVolume(0); noiseFiles[k].loop(); noiseStarted[k] = true; } catch (e) { soundError = ("start " + k + ": " + e).slice(0, 80); }
+}
 function startAmbience() {
   if (!soundStarted) return;
-  for (let k in noiseFiles) { if (!noiseFiles[k].isPlaying() && noiseFiles[k].isLoaded()) { noiseFiles[k].setVolume(0); noiseFiles[k].loop(); } }
+  for (let k in noiseFiles) startNoise(k);
   ambienceOn = true;
 }
 function stopAmbience() { ambienceOn = false; }
@@ -917,11 +922,10 @@ function updateSound(breath) {
   ringOsc.amp(ring * duck, 0.05);
   let targets = noiseTargets();
   for (let k in noiseFiles) {
-    let f = noiseFiles[k];
-    if (!f.isLoaded()) continue;
-    if (!f.isPlaying()) { f.setVolume(0); f.loop(); }                 // a file that finished loading after the first tap
+    startNoise(k);                                                   // also catches a file that finished loading after the first tap
+    if (!noiseStarted[k]) continue;
     let on = ambienceOn && !answeredAt ? (targets[k] || 0) : 0;
-    f.setVolume(on, 1.2);
+    noiseFiles[k].setVolume(on, 0.4);
   }
 }
 function say(text_) {
