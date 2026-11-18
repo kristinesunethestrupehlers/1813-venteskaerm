@@ -36,8 +36,8 @@
 <div class="box">
   <h2>Deltagerens telefon lige nu</h2>
   <div class="live" id="liveNr">–</div>
-  <div class="status" id="status"><div>Venter på første besked fra appen …</div></div>
-  <div class="hint">Appen skal være åben på deltagerens telefon, og begge skal være på nettet. Tre tryk på "1813" i appen viser også rummet.</div>
+  <div class="status" id="status"><div>Venter på første besked fra telefonen …</div></div>
+  <div class="hint">Venteuniverset skal være åbent på deltagerens telefon, og begge skal være på nettet. Tre tryk på "1813" på telefonen viser også rummet.</div>
 </div>
 
 <div class="box">
@@ -157,10 +157,12 @@ function sendCustom() { let t = document.getElementById("custom").value.trim(); 
 // the results live here on the computer, one row per participant, whatever happens to the phone
 const HEAD = ["tid","person","version","stoej","lyde","optrapning","situation","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"];
 let rows = []; try { rows = JSON.parse(localStorage.getItem("vu-results") || "[]"); } catch (e) {}
-function rowKey(r) { return r.time + "|" + r.scenario + "|" + r.estimateMin + "|" + r.calm + "|" + r.energy; }
+function rowKey(r) { return r.scenario + "|" + r.estimateMin + "|" + r.calm + "|" + r.energy + "|" + String(r.waitMin).replace(".", ","); }
 function addRow(r) { if (rows.some(x => rowKey(x) == rowKey(r))) return; rows.push(r); try { localStorage.setItem("vu-results", JSON.stringify(rows)); } catch (e) {} renderResults(); }
 function mergeCsv(txt) { let lines = txt.split("\n").slice(1); for (let l of lines) { let c = l.split(";"); if (c.length < 13) continue; addRow({ time: c[0], scenario: c[1], mode: c[2], noise: c[3], events: c[4], escalate: c[5], situation: c[6], waitMin: c[7], estimateMin: c[8], calm: c[9], energy: c[10], flowDone: c[11], status: c[12] }); } }
-function csvText() { return [HEAD.join(";")].concat(rows.map(r => [r.time, r.scenario, r.mode || "app", r.noise, r.events || 0, r.escalate || "nej", r.situation || "", r.waitMin, r.estimateMin, r.calm, r.energy, r.flowDone, r.status].join(";"))).join("\n"); }
+function csvVersion(m) { return (m == "1813" || m == "1813 i dag" || m == "almindelig") ? "almindelig" : "venteunivers"; }
+function csvStatus(v) { return ({ stones: "sten", bar: "bar", figure: "figur" })[v] || v; }
+function csvText() { return [HEAD.join(";")].concat(rows.map(r => [r.time, r.scenario, csvVersion(r.mode), r.noise, r.events || 0, r.escalate || "nej", r.situation || "", String(r.waitMin).replace(".", ","), r.estimateMin, r.calm, r.energy, r.flowDone, csvStatus(r.status)].join(";"))).join("\n"); }
 function renderResults() { document.getElementById("csv").value = csvText(); document.getElementById("rcount").textContent = rows.length; }
 function copyCsv() { navigator.clipboard.writeText(csvText()); }
 function downloadCsv() { let blob = new Blob(["\ufeff" + csvText()], { type: "text/csv;charset=utf-8" }); let a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "venteunivers-resultater-" + new Date().toISOString().slice(0, 10) + ".csv"; document.body.appendChild(a); a.click(); a.remove(); }
@@ -172,19 +174,19 @@ function clearAll() {
   showBanner("Alle resultater er slettet. Tælleren starter fra nul ved næste deltager.");
 }
 function showBanner(t) { let b = document.getElementById("banner"); b.textContent = t; b.style.display = "block"; document.getElementById("resultsBox").scrollIntoView({ behavior: "smooth", block: "nearest" }); setTimeout(() => { b.style.display = "none"; }, 20000); }
-function changeRoom() { let r = prompt("Rumkode (samme som ?rum= på appens link):", room); if (r) { localStorage.setItem("vu-room", r.toLowerCase()); location.search = "?rum=" + encodeURIComponent(r.toLowerCase()); } }
+function changeRoom() { let r = prompt("Rumkode (samme som ?rum= på deltagerens link):", room); if (r) { localStorage.setItem("vu-room", r.toLowerCase()); location.search = "?rum=" + encodeURIComponent(r.toLowerCase()); } }
 function btn(label, on, fn, cls) { let b = document.createElement("button"); b.textContent = label; if (on) b.className = "on"; if (cls) b.className = cls; b.onclick = fn; return b; }
 function fill(id, items) { let el = document.getElementById(id); el.innerHTML = ""; items.forEach(b => el.appendChild(b)); }
-const STATE_DA = { age:"vælger alder", sms:"sms", intro:"indledning", home:"forside", flow:"spørgsmål", confirm:"bekræft", sent:"sendt", red:"112-skærm", wait:"Din ventetid", calm:"Find ro", advice:"Gode råd", answered:"sygeplejersken svarede", survey:"tre spørgsmål", done:"færdig", call:"1813 i dag (opkald)" };
+const STATE_DA = { age:"vælger alder", sms:"sms", intro:"indledning", home:"forside", flow:"spørgsmål", confirm:"bekræft", sent:"sendt", red:"112-skærm", wait:"Din ventetid", calm:"Find ro", advice:"Gode råd", answered:"sygeplejersken svarede", survey:"tre spørgsmål", done:"færdig", call:"almindelig 1813 (opkald)" };
 function render() {
   let t = st.test || {}, group = st.age >= 0 ? AGES[st.age][1] : "adult";
-  let appSeen = st.t ? (Date.now() - st.t < 8000 ? "appen svarer" + (st.brokers ? " via " + st.brokers.join(", ") : "") : "appen har ikke svaret i " + Math.round((Date.now()-st.t)/1000) + " s") : "ingen kontakt med appen endnu";
-  let cmdLine = !lastSent.id ? "" : (st.lastCmd == lastSent.id ? `<div style="grid-column:1/3;color:#2F7A52"><b>Seneste kommando (${lastSent.what}):</b> modtaget af appen ✓</div>` : (Date.now() - lastSent.at > 4000 ? `<div style="grid-column:1/3;color:#B2321C"><b>Seneste kommando (${lastSent.what}):</b> IKKE modtaget efter ${Math.round((Date.now()-lastSent.at)/1000)} s ✗</div>` : `<div style="grid-column:1/3;color:#5E7A68"><b>Seneste kommando (${lastSent.what}):</b> sendt, venter på svar …</div>`));
+  let appSeen = st.t ? (Date.now() - st.t < 8000 ? "telefonen svarer" + (st.brokers ? " via " + st.brokers.join(", ") : "") : "telefonen har ikke svaret i " + Math.round((Date.now()-st.t)/1000) + " s") : "ingen kontakt med telefonen endnu";
+  let cmdLine = !lastSent.id ? "" : (st.lastCmd == lastSent.id ? `<div style="grid-column:1/3;color:#2F7A52"><b>Seneste kommando (${lastSent.what}):</b> modtaget af telefonen ✓</div>` : (Date.now() - lastSent.at > 4000 ? `<div style="grid-column:1/3;color:#B2321C"><b>Seneste kommando (${lastSent.what}):</b> IKKE modtaget efter ${Math.round((Date.now()-lastSent.at)/1000)} s ✗</div>` : `<div style="grid-column:1/3;color:#5E7A68"><b>Seneste kommando (${lastSent.what}):</b> sendt, venter på svar …</div>`));
   let gains = st.gains ? Object.entries(st.gains).filter(g => g[1] > 0.05).map(g => g[0] + " " + g[1]).join(", ") : "";
   document.getElementById("liveNr").textContent = st.running ? ("Nr. " + st.nr + " · " + Math.floor(st.left/60) + ":" + String(st.left%60).padStart(2,"0") + " tilbage") : (STATE_DA[st.state] || st.state || "–");
-  document.getElementById("status").innerHTML = `<div style="grid-column:1/3"><b>Forbindelse:</b> ${appSeen}</div>${cmdLine}<div style="grid-column:1/3"><b>Spiller lige nu:</b> ${st.ambience ? (gains || "intet (styrken er 0)") : "støjen er ikke tændt endnu (den tænder, når indledningen er færdig)"}</div><div><b>Skærm:</b> ${STATE_DA[st.state] || st.state || "–"}</div><div><b>Person:</b> ${st.person || "–"}</div><div><b>Version:</b> ${t.mode == "1813" ? "1813 i dag" : "venteunivers"}</div><div><b>Støj:</b> ${t.noise || "–"}${t.events ? " + lyde" : ""}${t.escalate ? " + optrapning" : ""}</div><div><b>Ventetid:</b> ${t.waitMin} min</div><div><b>Lyd startet:</b> ${st.sound ? "ja" : "nej (deltageren skal trykke først)"}</div><div><b>Situation:</b> ${st.situation ? "vises nu" : (st.choice || "–")}</div><div><b>Resultater:</b> ${st.results ?? "–"}</div>`;
+  document.getElementById("status").innerHTML = `<div style="grid-column:1/3"><b>Forbindelse:</b> ${appSeen}</div>${cmdLine}<div style="grid-column:1/3"><b>Spiller lige nu:</b> ${st.ambience ? (gains || "intet (styrken er 0)") : "støjen er ikke tændt endnu (den tænder, når indledningen er færdig)"}</div><div><b>Skærm:</b> ${STATE_DA[st.state] || st.state || "–"}</div><div><b>Person:</b> ${st.person || "–"}</div><div><b>Version:</b> ${t.mode == "1813" ? "almindelig" : "venteunivers"}</div><div><b>Støj:</b> ${t.noise || "–"}${t.events ? " + lyde" : ""}${t.escalate ? " + optrapning" : ""}</div><div><b>Ventetid:</b> ${t.waitMin} min</div><div><b>Lyd startet:</b> ${st.sound ? "ja" : "nej (deltageren skal trykke først)"}</div><div><b>Situation:</b> ${st.situation ? "vises nu" : (st.choice || "–")}</div><div><b>Resultater:</b> ${st.results ?? "–"}</div>`;
   fill("ages", AGES.map((a, i) => btn(a[0], st.age == i, () => set("age", i))));
-  fill("modes", [["app","Venteunivers"],["1813","1813 i dag (kontrol)"]].map(m => btn(m[1], t.mode == m[0], () => set("mode", m[0]))));
+  fill("modes", [["app","Venteunivers"],["1813","Almindelig 1813"]].map(m => btn(m[1], t.mode == m[0], () => set("mode", m[0]))));
   document.getElementById("day").className = st.night ? "" : "on"; document.getElementById("night").className = st.night ? "on" : "";
   document.getElementById("voice0").className = st.voiceOn ? "" : "on"; document.getElementById("voice1").className = st.voiceOn ? "on" : "";
   document.getElementById("music0").className = st.musicOn === false ? "on" : ""; document.getElementById("music1").className = st.musicOn === false ? "" : "on";

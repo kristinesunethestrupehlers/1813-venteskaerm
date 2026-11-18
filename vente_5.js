@@ -167,7 +167,7 @@ function tick() {
     lastSpokenNumber = queueNumber(); say(queueSentence());
   }
   // the loading screen and the "sent" screen move on even if the tab is hidden
-  if (state == "intro" && since() > 7000) { enter("home"); waitStart = millis(); test.startedAt = millis(); lastSpokenNumber = 0; startAmbience(); }
+  if (state == "intro" && since() > 7000) { enter("home"); lastSpokenNumber = 0; startAmbience(); }
   if (state == "sent" && since() > 2200) enter("home");
   publishState();
   updateSound();
@@ -841,7 +841,7 @@ function drawPanel() {
   yy += 64; text("Ventetid, før sygeplejersken svarer", width/2, yy); yy += 14;
   [2,3,4,5,6].forEach((m,i) => panelChoice(x + 12 + i * ((w-24)/5), yy, (w-24)/5 - 4, 26, m + " min", "p:wait:" + m, test.waitMin == m, 11));
   yy += 34; text("Version", width/2, yy); yy += 14;
-  [["app", "Venteunivers"], ["1813", "1813 i dag (kontrol)"]].forEach((m, i) => panelChoice(x + 12 + i * ((w-24)/2), yy, (w-24)/2 - 4, 26, m[1], "p:mode:" + m[0], test.mode == m[0], 11));
+  [["app", "Venteunivers"], ["1813", "Almindelig 1813"]].forEach((m, i) => panelChoice(x + 12 + i * ((w-24)/2), yy, (w-24)/2 - 4, 26, m[1], "p:mode:" + m[0], test.mode == m[0], 11));
   yy += 34; textAlign(LEFT, CENTER); text("Støjens styrke", x + 16, yy + 13); textAlign(CENTER, CENTER);
   LEVELS.forEach((L, i) => panelChoice(x + w - 12 - 172 + i * 58, yy, 54, 26, L[1], "p:level:" + L[0], abs((test.level || 0.6) - L[0]) < 0.01, 11));
   yy += 30; textAlign(LEFT, CENTER); text("Pludselige lyde", x + 16, yy + 13); textAlign(CENTER, CENTER);
@@ -885,9 +885,12 @@ function saveResult(r) {
   remotePublish("result", JSON.stringify(r));                       // one row to the test leader's page, kept there
   remotePublish("results", resultsCsv(), { retain: true });        // the whole file, so a page opened later gets it too
 }
+function csvVersion(m) { return (m == "1813" || m == "1813 i dag" || m == "almindelig") ? "almindelig" : "venteunivers"; }   // her names for the two versions
+function csvStatus(v) { return ({ stones: "sten", bar: "bar", figure: "figur" })[v] || v; }
+function localStamp() { let d = new Date(), z = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + " " + z(d.getHours()) + ":" + z(d.getMinutes()); }
 function resultsCsv() {
   let rows = [["tid","person","version","stoej","lyde","optrapning","situation","ventetid_min","gaet_min","ro_1_5","uro_1_5","spoergsmaal_sendt","status_stil"]];
-  for (let r of loadResults()) rows.push([r.time, r.scenario, r.mode || "app", r.noise, r.events || 0, r.escalate || "nej", r.situation || "", r.waitMin, r.estimateMin, r.calm, r.energy, r.flowDone, r.status]);
+  for (let r of loadResults()) rows.push([r.time, r.scenario, csvVersion(r.mode), r.noise, r.events || 0, r.escalate || "nej", r.situation || "", String(r.waitMin).replace(".", ","), r.estimateMin, r.calm, r.energy, r.flowDone, csvStatus(r.status)]);
   return rows.map(r => r.join(";")).join("\n");
 }
 
@@ -949,7 +952,7 @@ function handle(v) {
     else if (v.startsWith("scale:")) {
       if (survey.step == 1) { survey.calm = int(v.slice(6)); survey.step = 2; }
       else { survey.energy = int(v.slice(6));
-        saveResult({ time: new Date().toISOString().slice(0,16).replace("T"," "), scenario: personLine(), noise: test.noise, waitMin: round((answeredAt - waitStart)/6000) / 10, estimateMin: survey.estimate, calm: survey.calm, energy: survey.energy, flowDone: flowDone ? "ja" : "nej", status: test.status, mode: test.mode, events: test.events ? eventsPlayed : 0, escalate: test.escalate ? "ja" : "nej", situation: situationChoice });
+        saveResult({ time: localStamp(), scenario: personLine(), noise: test.noise, waitMin: round((answeredAt - waitStart)/6000) / 10, estimateMin: survey.estimate, calm: survey.calm, energy: survey.energy, flowDone: flowDone ? "ja" : "nej", status: test.status, mode: test.mode, events: test.events ? eventsPlayed : 0, escalate: test.escalate ? "ja" : "nej", situation: situationChoice });
         enter("done"); }
     }
     return;
@@ -976,7 +979,7 @@ function handlePanel(v) {
 // after the age is known: the venteunivers starts with the SMS, the control condition goes straight into the call
 function startTest() {
   if (test.mode == "1813") { enter("call"); waitStart = millis(); test.startedAt = millis(); callMsgAt = 0; startAmbience(); }
-  else enter("sms");
+  else { enter("sms"); waitStart = millis(); test.startedAt = millis(); }      // the wait counts from the moment the SMS is on the screen
 }
 function restart() {
   silenceAll();
