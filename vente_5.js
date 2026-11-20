@@ -64,7 +64,7 @@ function waitRemaining() { return waitStart ? max(0, waitTotalMs() - (millis() -
 function queueNumber() { return max(1, ceil(QUEUE_START * waitRemaining() / waitTotalMs())); }
 function minutesLeft() { return max(1, ceil(waitRemaining() / 60000)); }
 function progress() { return waitStart ? 1 - waitRemaining() / waitTotalMs() : 0; }
-function queueSentence() { let n = queueNumber(); return n == 1 ? "Du er den næste." : "Du er nummer " + n + " i køen. Der er cirka " + minutesLeft() + " minutter til."; }
+function queueSentence() { let n = queueNumber(); return n == 1 ? "Du er den næste." : "Du er nummer " + n + " i køen."; }
 
 // ------------------------------------------------------------ the questionnaire (one question at a time)
 let answers = {};               // who (infant/child/adult, from the age chosen at the start), theme, sub, q0..q2, temp, together
@@ -264,7 +264,7 @@ function drawHome() {
   let y = insetTop + 230, h = 70, gap = 12, bx = 24, bw = width - 48;
   if (width > 600) { bw = 520; bx = (width - bw) / 2; }
   menuBox(bx, y, bw, h, "Forbered din samtale", flowDone ? "Sendt til sygeplejersken" : "Start her", "check", "flow", !flowDone);
-  menuBox(bx, y + (h+gap), bw, h, "Din ventetid", "Nr. " + queueNumber() + " i køen", "clock", "wait", false, minutesLeft() + " min.");
+  menuBox(bx, y + (h+gap), bw, h, "Din ventetid", "Nr. " + queueNumber() + " i køen", "clock", "wait", false);
   menuBox(bx, y + 2*(h+gap), bw, h, "Find ro", "Mens du venter", "cloud", "calm", false);
   menuBox(bx, y + 3*(h+gap), bw, h, "Gode råd til dig", "Fra akut.dk", "heart", "advice", false);
 }
@@ -331,8 +331,7 @@ function drawWait(breath) {
   drawLandscape(insetTop + 150, height - insetBottom - 120, progress(), 1, false, breath);
   drawTopBar("Din ventetid", true);
   let c = col();
-  noStroke(); fill(c.cardsh); rect(25, insetTop + 118, 124, 30, 15); fill(c.accent); rect(24, insetTop + 116, 124, 30, 15);
-  fill(night ? "#0E2A24" : "#FFFFFF"); textSize(14); textStyle(BOLD); text("ca. " + minutesLeft() + " min.", 86, insetTop + 131);
+  noStroke();
   fill(c.ground); rect(0, height - insetBottom - 120, width, 120 + insetBottom);
   card(24, height - insetBottom - 104, width-48, 64);
   fill(c.ink); textSize(18); textStyle(BOLD); text(queueNumber() == 1 ? "Du er den næste" : "Du er nr. " + queueNumber() + " i køen", width/2, height - insetBottom - 72);
@@ -355,7 +354,7 @@ function drawCalm(breath) {
   fill(night ? color(36,70,64) : color(255,255,255,235)); blobShape(cx, cy, 70 * s1, 0.06, 3, 5, 2.2);
   fill(c.ink); textSize(15); textStyle(BOLD); text(inhale ? "Ind gennem næsen" : "Ud gennem munden", cx, cy - 6);
   textStyle(NORMAL); textSize(12); fill(c.soft); text("4 sekunder", cx, cy + 16);
-  textSize(12); fill(c.soft); let txt = "Nr. " + queueNumber() + " i køen · ca. " + minutesLeft() + " min.";
+  textSize(12); fill(c.soft); let txt = queueNumber() == 1 ? "Du er den næste" : "Nr. " + queueNumber() + " i køen";
   text(txt, width/2 + 6, height - insetBottom - 28);
   pulseDot(width/2 + 6 - textWidth(txt)/2 - 12, height - insetBottom - 28, 4);
 }
@@ -397,8 +396,8 @@ function drawAnswered() {
   fill("#FFFFFF"); circle(width/2 - 14, insetTop + 222, 6); circle(width/2 + 14, insetTop + 222, 6);
   noFill(); stroke("#FFFFFF"); strokeWeight(4); arc(width/2, insetTop + 236, 36, 22, 0, PI); noStroke();
   fill(c.ink); textSize(24); textLeading(30); textStyle(BOLD); text(hungUp ? "Du lagde på og ringede 112" : "Sygeplejersken tager telefonen", width*0.1, insetTop + 300, width*0.8, 70);
-  textStyle(NORMAL); fill(c.soft); textSize(14); text("Du ventede " + nf(round((answeredAt - waitStart)/60000 * 10) / 10, 1, 1).replace(".", ",") + " min.", width/2, insetTop + 380);
-  primaryButton(width/2, insetTop + 440, min(width*0.6, 280), 52, "Videre", "to-survey");
+  textStyle(NORMAL);
+  primaryButton(width/2, insetTop + 400, min(width*0.6, 280), 52, "Videre", "to-survey");
 }
 
 let survey = { step: 0, estimate: null, calm: null, energy: null };
@@ -551,8 +550,8 @@ function statusBlock() {
   noStroke(); fill(c.ground); rect(0, top, width, height - top);
   let cw = min(width - 48, 440), cx0 = (width - cw)/2;
   card(cx0, top + 16, cw, 124);
-  let n = queueNumber(), m = minutesLeft();
-  let txt = n == 1 ? "Du er den næste" : "Nr. " + n + " i køen · ca. " + m + " min.";
+  let n = queueNumber();
+  let txt = n == 1 ? "Du er den næste" : "Nr. " + n + " i køen";
   fill(c.ink); textSize(17); textStyle(BOLD); text(txt, width/2 + 8, top + 42);
   textStyle(NORMAL);
   pulseDot(width/2 + 8 - textWidth(txt)/2 - 14, top + 42, 5);
