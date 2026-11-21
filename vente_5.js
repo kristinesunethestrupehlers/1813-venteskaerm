@@ -438,8 +438,6 @@ function drawCall() {
   background("#1C1C1E");
   noStroke(); fill("#FFFFFF"); textSize(34); textStyle(BOLD); text("1813", width/2, insetTop + 110);
   textStyle(NORMAL); fill("#AEAEB2"); textSize(16); text("Akuttelefonen", width/2, insetTop + 146);
-  let sec = waitStart ? floor((millis() - waitStart) / 1000) : 0;
-  fill("#AEAEB2"); textSize(18); text(nf(floor(sec/60), 2) + ":" + nf(sec % 60, 2), width/2, insetTop + 176);
   let labels = ["lydløs", "tastatur", "højttaler", "tilføj", "FaceTime", "kontakter"];
   for (let i = 0; i < 6; i++) {
     let cx = width/2 + ((i % 3) - 1) * 100, cy = insetTop + 300 + floor(i/3) * 110;
