@@ -77,6 +77,9 @@ function flowSteps() {
   if (!answers.who) answers.who = ageChoice < 0 ? "adult" : AGES[ageChoice][1];
   steps.push({ key: "temp",     text: "Har du målt temperaturen?",                buttons: [["Ja","yes"],["Nej","no"]] });
   steps.push({ key: "together", text: "Er du sammen med den, det drejer sig om?",  buttons: [["Ja","yes"],["Nej","no"]] });
+  let child = answers.who != "adult";
+  steps.push({ key: "med",      text: child ? "Har barnet fået medicin?" : "Har du taget medicin?", buttons: [["Ja","yes"],["Nej","no"]] });
+  if (answers.med == "yes") steps.push({ key: "medinfo", kind: "med", text: child ? "Hvilken medicin har barnet fået?" : "Hvilken medicin har du taget?", buttons: [] });
   steps.push({ key: "theme",    text: "Hvad drejer det sig om?",                    buttons: THEMES[answers.who].map((th,i) => [th.da, String(i)]) });
   if (answers.theme == null) return steps;
   let th = THEMES[answers.who][int(answers.theme)];
@@ -180,6 +183,7 @@ function draw() {
   drawingContext.globalAlpha = 1;
   fill(0); noStroke();
   buttons = [];
+  medUiWanted = false;
   let breath = (sin(frameCount * 0.013) + 1) / 2;
   tick();
 
@@ -199,6 +203,7 @@ function draw() {
   else if (state == "done")     drawDone();
   else if (state == "call")     drawCall();
 
+  if (!medUiWanted) hideMedUi();
   if (situation && !answeredAt) drawSituation();
   if (panelOpen) drawPanel();
 }
@@ -282,6 +287,7 @@ function drawFlow() {
   fill(c.ink); textSize(q.text.length < 34 ? 24 : 21); textLeading(30); textStyle(BOLD);
   text(q.text, width*0.1, insetTop + 170, width*0.8, 110);
   textStyle(NORMAL);
+  if (q.kind == "med") { drawMedStep(); return; }
   let n = q.buttons.length;
   let top = insetTop + 290, room = height - insetBottom - 190 - top;
   let cols = n > 6 ? 2 : 1, rows = ceil(n / cols);
@@ -294,6 +300,56 @@ function drawFlow() {
   }
 }
 
+// ------------------------------------------------------------ medicine step
+// A real text field and a real camera input lie on top of the canvas, because a canvas cannot open the keyboard or the camera.
+// The name and the picture stay on this phone: they are not stored and not sent to the test leader.
+let medName = "", medPhoto = null, medUi = null, medUiWanted = false, medUiShown = false;
+function buildMedUi() {
+  let field = document.createElement("input");
+  field.type = "text"; field.placeholder = "Fx Panodil 500 mg"; field.maxLength = 60; field.autocomplete = "off"; field.enterKeyHint = "done";
+  field.style.cssText = "position:fixed;display:none;box-sizing:border-box;border:2px solid #2F7A52;border-radius:16px;padding:0 16px;font:16px Helvetica,Arial,sans-serif;background:#FFFBF3;color:#1E3A2C;outline:none;z-index:5;";
+  field.addEventListener("input", () => { medName = field.value; });
+  field.addEventListener("keydown", e => { if (e.key == "Enter") field.blur(); e.stopPropagation(); });   // typing must not trigger the sketch's keyboard shortcuts
+  let camera = document.createElement("input");
+  camera.type = "file"; camera.accept = "image/*"; camera.setAttribute("capture", "environment");
+  camera.style.cssText = "position:fixed;display:none;opacity:0;z-index:6;";
+  camera.addEventListener("change", () => {
+    let f = camera.files && camera.files[0]; if (!f) return;
+    let url = URL.createObjectURL(f);
+    loadImage(url, img => { if (img.width > 640) img.resize(640, 0); medPhoto = img; URL.revokeObjectURL(url); }, () => {});
+    camera.value = "";
+  });
+  document.body.appendChild(field); document.body.appendChild(camera);
+  medUi = { field, camera };
+}
+function placeMedUi(field, camera) {                    // each is [x, y, w, h] in canvas pixels
+  if (!medUi) buildMedUi();
+  let put = (el, r) => { el.style.left = r[0] + "px"; el.style.top = r[1] + "px"; el.style.width = r[2] + "px"; el.style.height = r[3] + "px"; el.style.display = "block"; };
+  put(medUi.field, field); put(medUi.camera, camera);
+  if (medUi.field.value != medName) medUi.field.value = medName;
+  medUiShown = true;
+}
+function hideMedUi() { if (!medUi || !medUiShown) return; medUi.field.blur(); medUi.field.style.display = "none"; medUi.camera.style.display = "none"; medUiShown = false; }
+function drawMedStep() {
+  let c = col(), w = min(width*0.78, 420), x = (width - w)/2, y = insetTop + 292;
+  noStroke(); fill(c.soft); textSize(14); text("Skriv navnet, eller tag et billede af pakken.", width/2, y - 20);
+  let by = y + 52 + 12;                                  // the camera button, under the text field
+  choiceButton(width/2, by + 26, w, 52, medPhoto ? "Billede taget · tag et nyt" : "Tag et billede", "med:photo", false, 16);
+  if (medPhoto) {                                        // a small round preview at the left end of the button
+    let d = 40, px = x + 6, py = by + 6, s = min(medPhoto.width, medPhoto.height);
+    drawingContext.save(); drawingContext.beginPath(); drawingContext.arc(px + d/2, py + d/2, d/2, 0, TWO_PI); drawingContext.clip();
+    image(medPhoto, px, py, d, d, (medPhoto.width - s)/2, (medPhoto.height - s)/2, s, s);
+    drawingContext.restore();
+  }
+  primaryButton(width/2, by + 52 + 14 + 27, w, 54, "Videre", "ans:done");
+  if (!panelOpen && !situation) { medUiWanted = true; placeMedUi([x, y, w, 52], [x, by, w, 52]); }
+}
+function medLine() {                                     // one line for the confirm screen
+  if (answers.med != "yes") return "";
+  let name = medName.trim(); if (name.length > 26) name = name.slice(0, 25) + "…";
+  return "Medicin: " + (name || (medPhoto ? "se billede" : "ikke oplyst")) + (medPhoto && name ? " · billede vedhæftet" : "");
+}
+
 function drawConfirm() {
   drawSky(); drawHills(height - insetBottom - 170, height);
   statusBlock();
@@ -303,6 +359,7 @@ function drawConfirm() {
   text("Er du sikker på dine svar?", width*0.1, insetTop + 170, width*0.8, 80);
   textStyle(NORMAL); fill(c.soft); textSize(14);
   text(flowSteps().length + " svar klar til sygeplejersken", width/2, insetTop + 250);
+  if (medLine()) { textSize(13); text(medLine(), width/2, insetTop + 274); }
   primaryButton(width/2, insetTop + 320, min(width*0.72, 320), 54, "Ja, send", "send");
   choiceButton(width/2, insetTop + 390, min(width*0.72, 320), 50, "Gennemgå igen", "review", false, 16);
 }
@@ -896,6 +953,7 @@ function resultsCsv() {
 function tap(mx, my) {
   if (millis() - lastTap < 150) return;
   lastTap = millis();
+  if (medUi && document.activeElement == medUi.field) medUi.field.blur();   // a tap outside the text field closes the keyboard
   startSound();
   try { let ctx = getAudioContext(); if (ctx && ctx.state != "running") ctx.resume(); } catch (e) {}
   for (let b of buttons) if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) { handle(b.value); return; }
@@ -925,6 +983,7 @@ function handle(v) {
     }
     return;
   }
+  if (v == "med:photo") return;                          // the camera input on top of the button takes the tap itself
   if (state == "flow" && v.startsWith("ans:")) {
     let steps = flowSteps(); let q = steps[qIndex]; let val = v.slice(4);
     answers[q.key] = val;
@@ -983,12 +1042,15 @@ function restart() {
   silenceAll();
   state = "age"; stateSince = millis(); waitStart = 0; answeredAt = 0; answers = {}; qIndex = 0; flowDone = false; cardIndex = 0; lastSpokenNumber = 0;
   situation = null; situationChoice = ""; hungUp = false; eventsPlayed = 0; nextEvent = 0; callMsgAt = 0;
+  medName = ""; medPhoto = null; if (medUi) medUi.field.value = "";
   if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
 }
-function mouseReleased() { tap(mouseX, mouseY); }
-function touchEnded() { tap(mouseX, mouseY); return false; }
-function touchStarted() { return false; }
+function onDomInput(e) { return !!(e && e.target && e.target.tagName == "INPUT"); }   // the medicine text field or camera input
+function mouseReleased(e) { if (onDomInput(e)) return true; tap(mouseX, mouseY); }
+function touchEnded(e) { if (onDomInput(e)) return true; tap(mouseX, mouseY); return false; }
+function touchStarted(e) { return onDomInput(e); }
 function keyPressed() {
+  if (document.activeElement && document.activeElement.tagName == "INPUT") return;
   if (key === "n") night = !night;
   if (key === "v") handle("toggle:voice");
   if (key === "m") musicOn = !musicOn;
