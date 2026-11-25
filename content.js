@@ -2,6 +2,9 @@
 // The structure is akut.dk's own: three age groups, their themes, and the sub-themes under each theme.
 // For every page we have read, there are:
 //   questions: 2 to 4 yes/no questions taken from the page's "ring 112 hvis" (-> red) and "ring læge hvis" lists
+//   CHECKED AGAINST AKUT.DK 25 NOV 2026: redIf now stands ONLY on questions whose page has a "Ring 1-1-2, hvis" list
+//   with that condition (10 pages, 24 questions). 12 questions were wrongly marked (the page only says "ring til din egen læge")
+//   and lost the mark. redUnverified = pages we could not open again that day (adult sub-pages); it has no effect in the app.
 //   cards:     the page's "gode råd" (what you can DO) and "ring læge hvis" rewritten as things to WATCH FOR
 // Cards are statements, never questions. "Wait a few hours and see" is left out on purpose (group decision 9 Nov).
 // akut.dk exists only in Danish, so every English text here is OUR translation.
@@ -55,7 +58,7 @@ const THEMES = {
 };
 
 // ---------- THE PAGES WE HAVE READ ----------
-// questions: { da, en, red: true when "yes" means hang up and call 112 }
+// questions: { da, en, redIf: the answer that means "hang up and call 112" according to the akut.dk page itself }
 // cards: [DO or WATCH, da, en]
 const PAGES = {
   // -------- children 4 months to 12 years --------
@@ -76,7 +79,7 @@ const PAGES = {
 
   "child-throat": { title: { da: "Ondt i halsen hos børn", en: "Sore throat in children" }, updated: "3. juli 2026",
     questions: [
-      { da: "Arbejder barnet hårdt for at trække vejret?", en: "Is the child working hard to breathe?", redIf: "yes" },
+      { da: "Arbejder barnet hårdt for at trække vejret?", en: "Is the child working hard to breathe?" },
       { da: "Savler barnet meget, eller har det meget svært ved at synke?", en: "Is the child drooling a lot, or finding it very hard to swallow?" },
       { da: "Kan barnet åbne munden som normalt?", en: "Can the child open their mouth as usual?" },
       { da: "Drikker og tisser barnet som normalt?", en: "Is the child drinking and peeing as usual?" } ],
@@ -194,8 +197,8 @@ const PAGES = {
 
   "adult-throat": { title: { da: "Ondt i halsen", en: "Sore throat" }, updated: "17. august 2026",
     questions: [
-      { da: "Er det svært at trække vejret, eller snævrer halsen sig sammen?", en: "Is it hard to breathe, or is the throat tightening?", redIf: "yes" },
-      { da: "Er det kommet pludseligt og blevet hurtigt værre over få timer?", en: "Did it come on suddenly and get rapidly worse over a few hours?", redIf: "yes" },
+      { da: "Er det svært at trække vejret, eller snævrer halsen sig sammen?", en: "Is it hard to breathe, or is the throat tightening?", redUnverified: "yes" },
+      { da: "Er det kommet pludseligt og blevet hurtigt værre over få timer?", en: "Did it come on suddenly and get rapidly worse over a few hours?", redUnverified: "yes" },
       { da: "Kan du åbne munden normalt, som når du gaber højt?", en: "Can you open your mouth normally, as when you yawn?" },
       { da: "Er der feber over 38?", en: "Is there a fever above 38?" },
       { da: "Er der belægninger på mandlerne eller ømme kirtler under kæben?", en: "Are there white patches on the tonsils or tender glands under the jaw?" } ],
@@ -222,9 +225,9 @@ const PAGES = {
 
   "adult-flu": { title: { da: "Influenza", en: "Flu" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er bevidstheden sløret eller påvirket?", en: "Is consciousness clouded or affected?", redIf: "yes" },
-      { da: "Er der tiltagende, svær hovedpine eller nakkestivhed?", en: "Is there increasing, severe headache or a stiff neck?", redIf: "yes" },
-      { da: "Er der vejrtrækningsbesvær eller brystsmerter ved hoste?", en: "Is there breathing difficulty or chest pain when coughing?", redIf: "yes" },
+      { da: "Er bevidstheden sløret eller påvirket?", en: "Is consciousness clouded or affected?", redUnverified: "yes" },
+      { da: "Er der tiltagende, svær hovedpine eller nakkestivhed?", en: "Is there increasing, severe headache or a stiff neck?", redUnverified: "yes" },
+      { da: "Er der vejrtrækningsbesvær eller brystsmerter ved hoste?", en: "Is there breathing difficulty or chest pain when coughing?", redUnverified: "yes" },
       { da: "Er personen over 65 eller kronisk syg?", en: "Is the person over 65 or chronically ill?" } ],
     cards: [
       [DO, "Tag febernedsættende medicin, fx paracetamol.", "Take fever-reducing medicine, such as paracetamol."],
@@ -237,8 +240,8 @@ const PAGES = {
 
   "adult-cough": { title: { da: "Hoste og åndedrætsbesvær", en: "Cough and breathing difficulty" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der udtalt vejrtrækningsbesvær eller smerter i brystet?", en: "Is there marked breathing difficulty or chest pain?", redIf: "yes" },
-      { da: "Er personen forvirret, slap eller meget sløv?", en: "Is the person confused, limp or very drowsy?", redIf: "yes" },
+      { da: "Er der udtalt vejrtrækningsbesvær eller smerter i brystet?", en: "Is there marked breathing difficulty or chest pain?", redUnverified: "yes" },
+      { da: "Er personen forvirret, slap eller meget sløv?", en: "Is the person confused, limp or very drowsy?", redUnverified: "yes" },
       { da: "Gør det ondt, når du trækker vejret?", en: "Does it hurt when you breathe?" },
       { da: "Har der været feber og hoste i mere end 5 dage?", en: "Have there been fever and cough for more than 5 days?" } ],
     cards: [
@@ -251,8 +254,8 @@ const PAGES = {
 
   "adult-asthma": { title: { da: "Astma", en: "Asthma" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der stadig åndenød i hvile, selvom anfaldet burde være klinget af?", en: "Is there still shortness of breath at rest, although the attack should have eased?", redIf: "yes" },
-      { da: "Er der gået mere end 20 minutter uden bedring?", en: "Has it been more than 20 minutes without improvement?", redIf: "yes" },
+      { da: "Er der stadig åndenød i hvile, selvom anfaldet burde være klinget af?", en: "Is there still shortness of breath at rest, although the attack should have eased?", redUnverified: "yes" },
+      { da: "Er der gået mere end 20 minutter uden bedring?", en: "Has it been more than 20 minutes without improvement?", redUnverified: "yes" },
       { da: "Har anfaldsmedicinen haft effekt?", en: "Has the reliever medicine had an effect?" } ],
     cards: [
       [DO, "Brug din anfaldsmedicin. Gentag eventuelt efter fem minutter med 1 til 2 pust, hvis første dosis ikke er nok.", "Use your reliever medicine. Repeat after five minutes with 1 to 2 puffs if the first dose is not enough."],
@@ -263,8 +266,8 @@ const PAGES = {
 
   "adult-vomiting": { title: { da: "Diarré og opkast", en: "Diarrhoea and vomiting" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er bevidstheden påvirket?", en: "Is consciousness affected?", redIf: "yes" },
-      { da: "Er der blod eller mørkt grums, som kaffegrums, i opkastet?", en: "Is there blood or dark grains, like coffee grounds, in the vomit?", redIf: "yes" },
+      { da: "Er bevidstheden påvirket?", en: "Is consciousness affected?", redUnverified: "yes" },
+      { da: "Er der blod eller mørkt grums, som kaffegrums, i opkastet?", en: "Is there blood or dark grains, like coffee grounds, in the vomit?", redUnverified: "yes" },
       { da: "Er der tegn på væskemangel: ingen urin, udtalt træthed, tørst, forvirring eller svimmelhed?", en: "Are there signs of dehydration: no urine, marked tiredness, thirst, confusion or dizziness?" },
       { da: "Er der svære mavesmerter, selvom du har taget smertestillende?", en: "Is there severe stomach pain despite painkillers?" } ],
     cards: [
@@ -278,8 +281,8 @@ const PAGES = {
 
   "adult-stomach": { title: { da: "Mavesmerter", en: "Stomach pain" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der pludselige smerter i både maven og brystkassen?", en: "Is there sudden pain in both the stomach and the chest?", redIf: "yes" },
-      { da: "Er der kraftige mavesmerter, og har personen besvimet?", en: "Is there severe stomach pain, and has the person fainted?", redIf: "yes" },
+      { da: "Er der pludselige smerter i både maven og brystkassen?", en: "Is there sudden pain in both the stomach and the chest?", redUnverified: "yes" },
+      { da: "Er der kraftige mavesmerter, og har personen besvimet?", en: "Is there severe stomach pain, and has the person fainted?", redUnverified: "yes" },
       { da: "Er der blod i opkast eller afføring, rød eller sort?", en: "Is there blood in vomit or stool, red or black?" },
       { da: "Er der feber sammen med smerterne?", en: "Is there a fever together with the pain?" },
       { da: "Sidder smerterne i nederste højre side af maven?", en: "Is the pain in the lower right side of the stomach?" } ],
@@ -321,9 +324,9 @@ const PAGES = {
 
   "adult-pain-neck": { title: { da: "Pludselige smerter i nakken", en: "Sudden neck pain" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der svær hovedpine, feber over 38 og stivhed i nakken?", en: "Is there severe headache, fever above 38 and a stiff neck?", redIf: "yes" },
-      { da: "Er personen lyssky, forvirret, meget svimmel, eller har personen været besvimet?", en: "Is the person sensitive to light, confused, very dizzy, or has the person fainted?", redIf: "yes" },
-      { da: "Er der pludselig svaghed eller lammelse i arme eller ben?", en: "Is there sudden weakness or paralysis in arms or legs?", redIf: "yes" },
+      { da: "Er der svær hovedpine, feber over 38 og stivhed i nakken?", en: "Is there severe headache, fever above 38 and a stiff neck?", redUnverified: "yes" },
+      { da: "Er personen lyssky, forvirret, meget svimmel, eller har personen været besvimet?", en: "Is the person sensitive to light, confused, very dizzy, or has the person fainted?", redUnverified: "yes" },
+      { da: "Er der pludselig svaghed eller lammelse i arme eller ben?", en: "Is there sudden weakness or paralysis in arms or legs?", redUnverified: "yes" },
       { da: "Er der føleforstyrrelser eller nedsat kraft i arme eller hænder?", en: "Is there numbness or reduced strength in arms or hands?" } ],
     cards: [
       [DO, "Undgå det, der forværrer smerterne, og skift stilling jævnligt.", "Avoid what makes the pain worse, and change position regularly."],
@@ -336,8 +339,8 @@ const PAGES = {
 
   "adult-pain-back": { title: { da: "Pludselige smerter i lænden", en: "Sudden lower back pain" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der kraftige rygsmerter sammen med svær utilpashed, svimmelhed eller besvimelse?", en: "Is there severe back pain together with feeling very unwell, dizziness or fainting?", redIf: "yes" },
-      { da: "Er smerterne meget intense og kommet akut?", en: "Is the pain very intense and did it come on acutely?", redIf: "yes" },
+      { da: "Er der kraftige rygsmerter sammen med svær utilpashed, svimmelhed eller besvimelse?", en: "Is there severe back pain together with feeling very unwell, dizziness or fainting?", redUnverified: "yes" },
+      { da: "Er smerterne meget intense og kommet akut?", en: "Is the pain very intense and did it come on acutely?", redUnverified: "yes" },
       { da: "Er der prikken, følelsesløshed eller svækkelse i benene?", en: "Is there tingling, numbness or weakness in the legs?" },
       { da: "Er der problemer med at styre vandladning eller afføring?", en: "Are there problems controlling urination or bowel movements?" } ],
     cards: [
@@ -350,7 +353,7 @@ const PAGES = {
 
   "adult-pain-arms": { title: { da: "Pludselige smerter i arme og hænder", en: "Sudden pain in arms and hands" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der pludselige stærke smerter med føleforstyrrelser, kulde og blålig hudfarve?", en: "Is there sudden severe pain with numbness, coldness and bluish skin?", redIf: "yes" },
+      { da: "Er der pludselige stærke smerter med føleforstyrrelser, kulde og blålig hudfarve?", en: "Is there sudden severe pain with numbness, coldness and bluish skin?", redUnverified: "yes" },
       { da: "Er der hævelse og spænding i en muskel i armen?", en: "Is there swelling and tightness in a muscle in the arm?" },
       { da: "Er der feber over 38 sammen med smerterne?", en: "Is there a fever above 38 together with the pain?" },
       { da: "Er der stærke smerter, også i hvile?", en: "Is there severe pain, even at rest?" } ],
@@ -364,8 +367,8 @@ const PAGES = {
 
   "adult-pain-legs": { title: { da: "Pludselige smerter i ben og fødder", en: "Sudden pain in legs and feet" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der intens, pludselig smerte i benet med bleg eller blålig hud?", en: "Is there intense, sudden pain in the leg with pale or bluish skin?", redIf: "yes" },
-      { da: "Er følesansen eller evnen til at bevæge benet væk?", en: "Is feeling or the ability to move the leg lost?", redIf: "yes" },
+      { da: "Er der intens, pludselig smerte i benet med bleg eller blålig hud?", en: "Is there intense, sudden pain in the leg with pale or bluish skin?", redUnverified: "yes" },
+      { da: "Er følesansen eller evnen til at bevæge benet væk?", en: "Is feeling or the ability to move the leg lost?", redUnverified: "yes" },
       { da: "Er der hævelse og spænding i en muskel i læg eller lår?", en: "Is there swelling and tightness in a muscle in the calf or thigh?" },
       { da: "Er der følelsesløshed eller kulde i benet eller foden?", en: "Is there numbness or coldness in the leg or foot?" } ],
     cards: [
@@ -381,7 +384,7 @@ const PAGES = {
   //          switch covers the screen texts and the pages translated earlier; the rest stays in Danish. --------
   "infant-stomach": { title: { da: "Spædbarn: mave og tarm" }, updated: "3. juli 2026",
     questions: [
-      { da: "Er opkastet grønt?", redIf: "yes" },
+      { da: "Er opkastet grønt?" },
       { da: "Er der frisk blod eller sort, tjæreagtig afføring?" },
       { da: "Er der færre våde bleer end normalt, eller tør mund?" },
       { da: "Kaster barnet op i store mængder efter hvert måltid?" } ],
@@ -394,9 +397,9 @@ const PAGES = {
       [WATCH, "Hold øje med grønt opkast, blod i afføringen, og om barnet bliver sløvt."] ] },
   "infant-drowsy": { title: { da: "Spædbarn: sløvhed eller slaphed" }, updated: "3. juli 2026",
     questions: [
-      { da: "Er barnet svært at vække, eller reagerer det ikke som normalt på lyd, lys og berøring?", redIf: "yes" },
-      { da: "Holder barnet pauser i vejrtrækningen, eller er vejrtrækningen hurtig og besværet?", redIf: "yes" },
-      { da: "Er huden bleg, blålig eller grålig, især omkring læber og negle?", redIf: "yes" },
+      { da: "Er barnet svært at vække, eller reagerer det ikke som normalt på lyd, lys og berøring?" },
+      { da: "Holder barnet pauser i vejrtrækningen, eller er vejrtrækningen hurtig og besværet?" },
+      { da: "Er huden bleg, blålig eller grålig, især omkring læber og negle?" },
       { da: "Er temperaturen 38 eller derover, eller under 36?" },
       { da: "Nægter barnet at spise over flere måltider?" } ],
     cards: [
@@ -408,9 +411,9 @@ const PAGES = {
       [WATCH, "Hold øje med tørre slimhinder og antallet af våde bleer i døgnet."] ] },
   "infant-fever": { title: { da: "Spædbarn: feber og infektion" }, updated: "3. juli 2026",
     questions: [
-      { da: "Er barnet sløvt, eller er det svært at få kontakt?", redIf: "yes" },
-      { da: "Er vejrtrækningen hurtig eller besværet?", redIf: "yes" },
-      { da: "Er der udslæt, der ikke blegner, når du trykker på det?", redIf: "yes" },
+      { da: "Er barnet sløvt, eller er det svært at få kontakt?" },
+      { da: "Er vejrtrækningen hurtig eller besværet?" },
+      { da: "Er der udslæt, der ikke blegner, når du trykker på det?" },
       { da: "Er temperaturen 38 eller derover, målt i endetarmen?" },
       { da: "Er der opkast, diarré eller færre våde bleer?" } ],
     cards: [
@@ -422,8 +425,8 @@ const PAGES = {
       [WATCH, "Hold øje med sløvhed, utrøstelig gråd, nedsat appetit og hudfarve."] ] },
   "infant-breathing": { title: { da: "Spædbarn: påvirket vejrtrækning" }, updated: "3. juli 2026",
     questions: [
-      { da: "Er der pauser i vejrtrækningen på mere end 10 sekunder?", redIf: "yes" },
-      { da: "Bliver huden blålig omkring fingre, hænder, fødder eller læber?", redIf: "yes" },
+      { da: "Er der pauser i vejrtrækningen på mere end 10 sekunder?" },
+      { da: "Bliver huden blålig omkring fingre, hænder, fødder eller læber?" },
       { da: "Trækkes huden ind under eller mellem ribbenene eller under halsen, når barnet trækker vejret?" },
       { da: "Er vejrtrækningen meget hurtig eller hvæsende?" },
       { da: "Er barnet sløvt, irritabelt, eller afviser det mad?" } ],
@@ -462,7 +465,7 @@ const PAGES = {
       [WATCH, "Hold øje med, om barnet har svært ved at spise eller virker irritabelt."] ] },
   "infant-skin": { title: { da: "Spædbarn: huden" }, updated: "3. juli 2026",
     questions: [
-      { da: "Er der udslæt, der ikke forsvinder, når du trykker på huden?", redIf: "yes" },
+      { da: "Er der udslæt, der ikke forsvinder, når du trykker på huden?" },
       { da: "Er huden og det hvide i øjnene gulligt efter barnets første leveuge?" },
       { da: "Spreder udslættet sig hurtigt, eller ser det betændt ud med rødme, varme eller pus?" },
       { da: "Er der blærer, sår eller væskende områder?" } ],
@@ -503,9 +506,9 @@ const PAGES = {
   // -------- adults, the remaining themes (akut.dk, 7. juli 2026). Danish only. --------
   "adult-headache": { title: { da: "Hovedpine" }, updated: "7. juli 2026",
     questions: [
-      { da: "Kom hovedpinen pludseligt og meget kraftigt, som et smæld i baghovedet?", redIf: "yes" },
-      { da: "Er der lammelser, talebesvær, synsforstyrrelser eller påvirket bevidsthed?", redIf: "yes" },
-      { da: "Er der svær hovedpine sammen med nakkestivhed og høj feber?", redIf: "yes" },
+      { da: "Kom hovedpinen pludseligt og meget kraftigt, som et smæld i baghovedet?", redUnverified: "yes" },
+      { da: "Er der lammelser, talebesvær, synsforstyrrelser eller påvirket bevidsthed?", redUnverified: "yes" },
+      { da: "Er der svær hovedpine sammen med nakkestivhed og høj feber?", redUnverified: "yes" },
       { da: "Er der opkastninger sammen med en ukendt, svær hovedpine?" },
       { da: "Er hovedpinen vedvarende sammen med hukommelses- eller koncentrationsbesvær?" } ],
     cards: [
@@ -517,9 +520,9 @@ const PAGES = {
       [WATCH, "Hold øje med opkastninger, usikker gang og psykiske ændringer."] ] },
   "adult-dizzy": { title: { da: "Svimmelhed" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der pludselig dobbeltsyn, synstab, talebesvær eller nedsat kraft i en arm eller et ben?", redIf: "yes" },
-      { da: "Hænger den ene mundvig, eller kan personen ikke smile?", redIf: "yes" },
-      { da: "Er der en trykkende fornemmelse i brystkassen?", redIf: "yes" },
+      { da: "Er der pludselig dobbeltsyn, synstab, talebesvær eller nedsat kraft i en arm eller et ben?", redUnverified: "yes" },
+      { da: "Hænger den ene mundvig, eller kan personen ikke smile?", redUnverified: "yes" },
+      { da: "Er der en trykkende fornemmelse i brystkassen?", redUnverified: "yes" },
       { da: "Forsvinder svimmelheden, når du ligger eller sidder helt stille?" },
       { da: "Har du sukkersyge, hjertesygdom, eller får du blodfortyndende medicin?" } ],
     cards: [
@@ -541,7 +544,7 @@ const PAGES = {
       [WATCH, "Hold øje med feber og hævelse. Kun ved udbredt infektion er der brug for lægelig behandling."] ] },
   "adult-nosebleed": { title: { da: "Næseblod" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er blødningen stærk, og er du blevet akut dårlig og meget medtaget?", redIf: "yes" },
+      { da: "Er blødningen stærk, og er du blevet akut dårlig og meget medtaget?", redUnverified: "yes" },
       { da: "Har blødningen varet mere end 30 minutter, selvom du har klemt om næsen?" },
       { da: "Kommer blødningen igen, efter den er stoppet?" },
       { da: "Er du i blodfortyndende behandling?" } ],
@@ -554,9 +557,9 @@ const PAGES = {
       [WATCH, "Pil ikke, og puds ikke næse i dagene efter, så den ikke begynder at bløde igen."] ] },
   "adult-chest": { title: { da: "Smerter og ubehag i brystet" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der trykkende, kraftige smerter i brystet, der ikke lindres ved hvile?", redIf: "yes" },
-      { da: "Stråler smerterne ud i venstre arm, hals eller ryg, eller er der intens åndenød?", redIf: "yes" },
-      { da: "Er der stærk svimmelhed, eller har personen været bevidstløs?", redIf: "yes" },
+      { da: "Er der trykkende, kraftige smerter i brystet, der ikke lindres ved hvile?", redUnverified: "yes" },
+      { da: "Stråler smerterne ud i venstre arm, hals eller ryg, eller er der intens åndenød?", redUnverified: "yes" },
+      { da: "Er der stærk svimmelhed, eller har personen været bevidstløs?", redUnverified: "yes" },
       { da: "Er der åndenød, stærk kvalme eller svimmelhed sammen med ømheden?" },
       { da: "Ryger du, eller har du sukkersyge, forhøjet blodtryk eller kendt hjertesygdom?" } ],
     cards: [
@@ -568,9 +571,9 @@ const PAGES = {
       [WATCH, "Hold øje med trykkende smerter, udstråling til arm, hals eller ryg, og åndenød."] ] },
   "adult-palpitations": { title: { da: "Hjertebanken" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der akutte, intense brystsmerter eller trykken for brystet?", redIf: "yes" },
-      { da: "Er der stærkt besvær med vejrtrækningen, eller har personen mistet bevidstheden?", redIf: "yes" },
-      { da: "Er der akut forvirring, synsforstyrrelser eller svær kraftnedsættelse i arme eller ben?", redIf: "yes" },
+      { da: "Er der akutte, intense brystsmerter eller trykken for brystet?", redUnverified: "yes" },
+      { da: "Er der stærkt besvær med vejrtrækningen, eller har personen mistet bevidstheden?", redUnverified: "yes" },
+      { da: "Er der akut forvirring, synsforstyrrelser eller svær kraftnedsættelse i arme eller ben?", redUnverified: "yes" },
       { da: "Er der åndenød eller svimmelhed sammen med hjertebanken?" },
       { da: "Har hjertebanken varet mere end 20 til 30 minutter uden tydelig grund?" } ],
     cards: [
@@ -582,8 +585,8 @@ const PAGES = {
       [WATCH, "Hold øje med, hvor længe det varer. Notér episoderne."] ] },
   "adult-bloodpressure": { title: { da: "Højt blodtryk" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der pludselige, intense brystsmerter eller åndenød?", redIf: "yes" },
-      { da: "Er der svær hovedpine, der føles anderledes end normalt, sammen med forvirring, taleproblemer eller synsforstyrrelser?", redIf: "yes" },
+      { da: "Er der pludselige, intense brystsmerter eller åndenød?", redUnverified: "yes" },
+      { da: "Er der svær hovedpine, der føles anderledes end normalt, sammen med forvirring, taleproblemer eller synsforstyrrelser?", redUnverified: "yes" },
       { da: "Har du målt over 160/100 flere gange?" },
       { da: "Er der svimmelhed, træthed eller hjertebanken, der ikke går væk ved hvile?" } ],
     cards: [
@@ -621,10 +624,10 @@ const PAGES = {
       [WATCH, "Hold øje med smerter, der ikke lindres af smertestillende."] ] },
   "adult-rash": { title: { da: "Udslæt og prikker" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der små røde eller lilla prikker, der ikke blegner, når du trykker på dem?", redIf: "yes" },
-      { da: "Er der nakkestivhed, lysskyhed, forvirring eller påvirket bevidsthed?", redIf: "yes" },
-      { da: "Er der hævelse i ansigt eller hals eller vejrtrækningsbesvær?", redIf: "yes" },
-      { da: "Breder rødmen sig hurtigt, eller er der feber og kulderystelser?", redIf: "yes" },
+      { da: "Er der små røde eller lilla prikker, der ikke blegner, når du trykker på dem?", redUnverified: "yes" },
+      { da: "Er der nakkestivhed, lysskyhed, forvirring eller påvirket bevidsthed?", redUnverified: "yes" },
+      { da: "Er der hævelse i ansigt eller hals eller vejrtrækningsbesvær?", redUnverified: "yes" },
+      { da: "Breder rødmen sig hurtigt, eller er der feber og kulderystelser?", redUnverified: "yes" },
       { da: "Er udslættet udbredt sammen med feber over 38?" } ],
     cards: [
       [DO, "Undgå nye hudplejeprodukter, vaskemidler eller fødevarer, der kan være årsagen."],
@@ -647,7 +650,7 @@ const PAGES = {
       [WATCH, "Hold øje med, om du bliver så syg, at du ikke kan stå på benene."] ] },
   "adult-eye": { title: { da: "Rødt øje" }, updated: "7. juli 2026",
     questions: [
-      { da: "Er der pludseligt synstab på et eller begge øjne?", redIf: "yes" },
+      { da: "Er der pludseligt synstab på et eller begge øjne?", redUnverified: "yes" },
       { da: "Er der kraftige eller dybe smerter i eller omkring øjet?" },
       { da: "Er synet nedsat, ændret eller sløret, eller er du lyssky?" },
       { da: "Har pupillerne forskellig størrelse?" } ],
@@ -711,8 +714,8 @@ const PAGES = {
       [WATCH, "Hold øje med udflåd, der lugter eller skifter farve, og med smerter ved vandladning."] ] },
   "adult-pregnancy-bleeding": { title: { da: "Graviditet og blødning" }, updated: "7. juli 2026",
     questions: [
-      { da: "Bløder du kraftigt og gennembløder flere bind i timen?", redIf: "yes" },
-      { da: "Føler du dig svimmel, tæt på at besvime, eller har du hjertebanken?", redIf: "yes" },
+      { da: "Bløder du kraftigt og gennembløder flere bind i timen?", redUnverified: "yes" },
+      { da: "Føler du dig svimmel, tæt på at besvime, eller har du hjertebanken?", redUnverified: "yes" },
       { da: "Er der feber over 38 sammen med blødningen?" },
       { da: "Er der smerter, kramper eller sammentrækninger sammen med blødningen?" },
       { da: "Er du efter uge 20, og mærker du mindre liv?" } ],
@@ -780,7 +783,7 @@ const PAGES = {
       [WATCH, "Hold øje med tiltagende hovedpine og gentagne opkastninger."] ] },
   "injury-fall": { title: { da: "Fald, vrid og slag" }, updated: "22. juni 2026",
     questions: [
-      { da: "Er der en synlig fejlstilling, eller stikker knogle ud gennem huden?", redIf: "yes" },
+      { da: "Er der en synlig fejlstilling, eller stikker knogle ud gennem huden?", redUnverified: "yes" },
       { da: "Kan du støtte på eller bruge det?" },
       { da: "Er hævelsen kommet inden for få minutter?" },
       { da: "Er der følelsesløshed eller kulde nedenfor skaden?" } ],
@@ -846,7 +849,7 @@ const PAGES = {
       [WATCH, "Behandling af alvorlige tandskader og efterblødninger er gratis på Regionens Tandlægevagt."] ] },
   "injury-poison": { title: { da: "Forgiftning" }, updated: "28. september 2026",
     questions: [
-      { da: "Er personen bevidstløs, eller er vejrtrækningen påvirket?", redIf: "yes" },
+      { da: "Er personen bevidstløs, eller er vejrtrækningen påvirket?" },
       { da: "Ved du, hvad personen har indtaget?" },
       { da: "Er det medicin, rusmidler, kemikalier, planter eller svampe?" } ],
     cards: [
