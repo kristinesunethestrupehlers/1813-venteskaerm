@@ -4,7 +4,7 @@
 //   home: Forbered din samtale (CPR -> age group, then one question at a time, confirm, sent)
 //         · Din ventetid (the full landscape) · Find ro (sky only, breathing) · Gode råd til dig (one card at a time, browsable)
 //   the queue runs on a timer; when it reaches zero the nurse answers and the participant gets three questions
-//   (how long did you think you waited, how calm, how much unrest); the answers are kept for the test leader.
+//   (how long did you think you waited, how calm you felt, how calm the body was; 5 is the good end in both); the answers are kept for the test leader.
 //
 // Test leader panel: tap the "1813" title three times quickly. Scenario, noise, waiting time, status style, results.
 // Controls (top right): day/night · voice on/off (speaker, OFF by default) · music on/off (off = the Danish ringback tone)
@@ -49,6 +49,7 @@ const LEVELS = [[0.4, "lav"], [0.6, "mellem"], [0.8, "høj"]];   // the noise ce
 const SITUATIONS = { infant: ["Barnet er blevet slapt og svært at få kontakt til", "Barnet kaster nu op"], child: ["Barnet kaster nu op", "Feberen er steget til 40"], adult: ["Smerterne er blevet værre", "Du er begyndt at kaste op"] };
 function situationsForAge() { return SITUATIONS[ageChoice < 0 ? "adult" : AGES[ageChoice][1]]; }
 let situation = null, situationChoice = "", hungUp = false;
+const RED_SCREEN = false;         // false: a 112 answer in the questions no longer ends the test with the red screen (it stopped too many tests, 25 Nov 2026)
 let eventsPlayed = 0, nextEvent = 0;
 let callMsgAt = 0;
 let panelOpen = false;
@@ -415,10 +416,10 @@ function drawSurvey() {
       choiceButton(cx, cy, 68, 50, opts[i] + " min", "est:" + opts[i], false, 15);
     }
   } else {
-    let q = survey.step == 1 ? "Hvor rolig følte du dig, mens du ventede?" : "Hvor meget uro eller energi var der i kroppen?";
+    let q = survey.step == 1 ? "Hvor rolig følte du dig, mens du ventede?" : "Hvor rolig var din krop, mens du ventede?";   // both scales now run the same way: 5 is the good end
     text(q, width*0.1, insetTop + 170, width*0.8, 80);
-    textStyle(NORMAL); textSize(12); fill(c.soft);
-    text(survey.step == 1 ? "1 = slet ikke rolig · 5 = helt rolig" : "1 = helt stille · 5 = meget uro", width/2, insetTop + 250);
+    textStyle(NORMAL); textSize(14); fill(c.soft);
+    text(survey.step == 1 ? "1 = slet ikke rolig · 5 = helt rolig" : "1 = meget uro i kroppen · 5 = helt rolig krop", width/2, insetTop + 250);
     for (let i = 1; i <= 5; i++) choiceButton(width/2 - 140 + (i-1) * 70, insetTop + 310, 58, 54, String(i), "scale:" + i, false, 18);
   }
 }
@@ -927,7 +928,7 @@ function handle(v) {
   if (state == "flow" && v.startsWith("ans:")) {
     let steps = flowSteps(); let q = steps[qIndex]; let val = v.slice(4);
     answers[q.key] = val;
-    if (q.redIf && val == q.redIf) { enter("red"); say("Læg på, og ring et, et, to nu."); return; }
+    if (RED_SCREEN && q.redIf && val == q.redIf) { enter("red"); say("Læg på, og ring et, et, to nu."); return; }
     qIndex += 1;
     let next = flowSteps();
     if (qIndex >= next.length) { enter("confirm"); say("Er du sikker på dine svar?"); } else say(next[qIndex].text);
@@ -948,7 +949,7 @@ function handle(v) {
     if (v.startsWith("est:")) { survey.estimate = int(v.slice(4)); survey.step = 1; }
     else if (v.startsWith("scale:")) {
       if (survey.step == 1) { survey.calm = int(v.slice(6)); survey.step = 2; }
-      else { survey.energy = int(v.slice(6));
+      else { survey.energy = 6 - int(v.slice(6));   // stored as unrest (5 = much unrest), as before, so old and new results share the uro_1_5 column
         saveResult({ time: localStamp(), scenario: personLine(), noise: test.noise, waitMin: round((answeredAt - waitStart)/6000) / 10, estimateMin: survey.estimate, calm: survey.calm, energy: survey.energy, flowDone: flowDone ? "ja" : "nej", status: test.status, mode: test.mode, events: test.events ? eventsPlayed : 0, escalate: test.escalate ? "ja" : "nej", situation: situationChoice });
         enter("done"); }
     }
